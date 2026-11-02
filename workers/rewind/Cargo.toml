@@ -1,0 +1,25 @@
+[package]
+name = "rewind"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Records calls between iii functions, replays a recorded request against the worker's own code, and forks it"
+
+[dependencies]
+async-trait = "0.1"
+base64 = "0.22"
+iii-sdk = "=0.25.0"
+libc = "0.2"
+# The same build iii-sdk already uses, for running a captured request live.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Reads worker-compose.yaml and each worker's iii.worker.yaml to start copies of other workers.
+serde_yaml = "0.9"
+sha1 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "process", "sync", "signal", "io-util"] }
+
+[profile.release]
+debug = false

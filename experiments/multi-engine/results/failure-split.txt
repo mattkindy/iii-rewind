@@ -1,0 +1,51 @@
+Failure across the boundary on split, 2026-10-31T15:56:36.532Z
+Kill tools (engine-b)
+  direct calendar::find-slot from engine A, tools killed 200 ms in
+    round 1: caller got {"error":{"code":"bridge_error","message":"bridge_error: remote error (invocation_stopped): Invocation stopped"}} 4.4 ms after the kill (227 ms after it sent)
+      a call made right after got {"error":{"code":"bridge_error","message":"bridge_error: remote error (function_not_found): Function calendar::find-slot not found in namespace default."}}
+      calls through engine A worked again 1070 ms after the kill
+    round 2: caller got {"error":{"code":"bridge_error","message":"bridge_error: remote error (invocation_stopped): Invocation stopped"}} 2.0 ms after the kill (226 ms after it sent)
+      a call made right after got {"error":{"code":"bridge_error","message":"bridge_error: remote error (function_not_found): Function calendar::find-slot not found in namespace default."}}
+      calls through engine A worked again 972 ms after the kill
+    round 3: caller got {"error":{"code":"bridge_error","message":"bridge_error: remote error (invocation_stopped): Invocation stopped"}} 2.1 ms after the kill (224 ms after it sent)
+      a call made right after got {"error":{"code":"bridge_error","message":"bridge_error: remote error (function_not_found): Function calendar::find-slot not found in namespace default."}}
+      calls through engine A worked again 1268 ms after the kill
+  email::send killed 100 ms in: caller got {"error":{"code":"bridge_error","message":"bridge_error: remote error (invocation_stopped): Invocation stopped"}} 2.5 ms after the kill
+    outbox lines with this subject 4 s later: 1 ({"id":"msg_1882d23f3a84","to":"probe@example.com","subject":"multi-engine kill tools 1793462204018","start":"2026-11-10T14:00:00-06:00","sent_at":"2026-10-31T15:56:44.437Z","took_ms":414,"caller_invocation_id":null})
+    completions the tools' engine reported for it: none
+  burst of 16 runs, tools killed 1.5 s in: {"booked":4,"errors":2,"failed":10,"sent":16}
+    rewind::lost lists 8 new run(s)
+      c62e49d0-608e-4032-8a0d-02312e0e154f lost at seq 4: I couldn't book it, because calendar::find-slot failed: bridge_error: remote error (function_not_found): Function calendar::find-slot not found in namespace default.
+      52160c20-441c-4537-a811-f8c54ec546be lost at seq 4: I couldn't book it, because calendar::find-slot failed: bridge_error: remote error (function_not_found): Function calendar::find-slot not found in namespace default.
+      5d8dd38d-9414-4feb-b31a-1358e593f6a6 lost at seq 4: I couldn't book it, because calendar::find-slot failed: bridge_error: remote error (invocation_stopped): Invocation stopped
+      9d0e9418-b855-48cf-8b17-ff094f9adfce lost at seq 4: I couldn't book it, because calendar::find-slot failed: bridge_error: remote error (invocation_stopped): Invocation stopped
+    worker changes Rewind A has around the kill: none
+    rewind::recover c62e49d0-608e-4032-8a0d-02312e0e154f -> f14 (recover): done {"reply":"I couldn't book it, because calendar::find-slot failed: bridge_error: remote error (function_not_found): Function calendar::find-slot not found in namespace default.","status":"failed","turns":2}
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-04&weeks=2=recorded 3:calendar::find-slot=recorded 4:model::complete=recorded
+    the tools' engine ran 0 call(s) during the recovery: none; outbox 199 -> 199
+Kill bridge (engine-a)
+  direct calendar::find-slot from engine A, bridge killed 200 ms in
+    round 1: caller got {"error":{"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}} 2.0 ms after the kill (226 ms after it sent)
+      a call made right after got {"error":{"code":"function_not_found","message":"function_not_found: Function calendar::find-slot not found in namespace default."}}
+      calls through engine A worked again 1037 ms after the kill
+    round 2: caller got {"error":{"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}} 2.2 ms after the kill (231 ms after it sent)
+      a call made right after got {"error":{"code":"function_not_found","message":"function_not_found: Function calendar::find-slot not found in namespace default."}}
+      calls through engine A worked again 1157 ms after the kill
+    round 3: caller got {"error":{"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}} 1.6 ms after the kill (223 ms after it sent)
+      a call made right after got {"error":{"code":"function_not_found","message":"function_not_found: Function calendar::find-slot not found in namespace default."}}
+      calls through engine A worked again 641 ms after the kill
+  email::send killed 100 ms in: caller got {"error":{"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}} 1.7 ms after the kill
+    outbox lines with this subject 4 s later: 1 ({"id":"msg_56227e11d104","to":"probe@example.com","subject":"multi-engine kill bridge 1793462227814","start":"2026-11-10T14:00:00-06:00","sent_at":"2026-10-31T15:57:08.197Z","took_ms":379,"caller_invocation_id":null})
+    completions the tools' engine reported for it: error after 125 ms
+  burst of 16 runs, bridge killed 1.5 s in: {"booked":6,"errors":2,"failed":8,"sent":16}
+    rewind::lost lists 7 new run(s)
+      02457b69-0ada-4767-a940-13cc9bbf3b2c lost at seq 3: I couldn't book it, because calendar::find-slot failed: invocation_stopped: Invocation stopped
+      3e882717-3e93-4712-9241-694e8ce63047 lost at seq 3: I couldn't book it, because calendar::find-slot failed: function_not_found: Function calendar::find-slot not found in namespace default.
+      57e05ba4-0d80-43c9-9934-7f5456bbdce4 lost at seq 3: I couldn't book it, because calendar::find-slot failed: invocation_stopped: Invocation stopped
+      036869fc-9b6e-4a7d-acd6-e621f3a73df6 lost at seq 3: I couldn't book it, because calendar::find-slot failed: invocation_stopped: Invocation stopped
+    worker changes Rewind A has around the kill: disconnected bridge, connected bridge
+    rewind::recover 02457b69-0ada-4767-a940-13cc9bbf3b2c -> f15 (recover): paused at seq 3 calendar::find-slot, effects [], choices live, typed, inject, stop
+      seq 3 calendar::find-slot answered live: {"value":{"attendee":"omar@example.com","end":"2026-11-02T13:45:00-06:00","start":"2026-11-02T13:00:00-06:00"}}; now paused at seq 5 email::send, effects [], choices live, typed, inject, stop
+      seq 5 email::send answered live: {"value":{"id":"msg_92ab388b07bd","status":"accepted"}}; now done {"reply":"Booked Monday 2 Nov at 1:00 pm with Omar and sent the invite.","status":"booked","turns":3}
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-02&weeks=2=recorded 3:calendar::find-slot=live 4:model::complete=live 5:email::send=live 6:model::complete=live
+    the tools' engine ran 2 call(s) during the recovery: calendar::find-slot success, email::send success; outbox 206 -> 207

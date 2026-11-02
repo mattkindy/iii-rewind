@@ -1,0 +1,11 @@
+Latency on split, engine ws://127.0.0.1:50034, 2026-10-31T16:01:19.379Z
+probe::echo round trip (split)               n=200 mean     0.41  p50     0.38  p90     0.59  p99     0.72  min     0.21  max     0.76  (ms)
+  failures: 0
+calendar::find-slot round trip (split)       n= 40 mean   651.41  p50   654.78  p90   827.10  p99   896.01  min   434.89  max   896.01  (ms)
+  failures: 0
+  inside the tool, from the tools' Rewind    n= 40 mean   650.57  p50   653.95  p90   826.25  p99   895.20  min   434.03  max   895.20  (ms)
+  round trip minus time inside the tool      n= 40 mean     0.84  p50     0.83  p90     0.94  p99     1.16  min     0.62  max     1.16  (ms)
+traffic::burst {"count":30,"interval_ms":150} took 7.2 s: {"booked":22,"errors":6,"failed":2,"sent":30}
+  Rewind recorded 30 runs: 22 success booked, 5 error: Unterminated string in JSON at position , 2 success failed, 1 error: Expected ',' or '}' after property value
+  agent::run duration                        n= 30 mean  2313.98  p50  2447.25  p90  3335.10  p99  4288.77  min   322.13  max  4288.77  (ms)
+  calls Rewind recorded per run (count, not ms) n= 30 mean     5.90  p50     7.00  p90     7.00  p99     8.00  min     2.00  max     8.00  (ms)

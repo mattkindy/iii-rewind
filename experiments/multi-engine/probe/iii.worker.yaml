@@ -1,0 +1,11 @@
+iii: v1
+name: probe
+language: typescript
+description: Answers probe::echo at once, so a caller can time a call that has no work behind it.
+
+runtime:
+  kind: node
+
+scripts:
+  install: npm install --no-audit --no-fund
+  start: node --import tsx src/worker.ts

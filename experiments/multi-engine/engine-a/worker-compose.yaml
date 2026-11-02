@@ -1,0 +1,78 @@
+# Engine A of the two-engine experiment, at 50034: the agent and everything it needs except its
+# tools, which run on engine B. The bridge worker registers calendar::find-slot, email::send and
+# probe::echo here and forwards each call to engine B.
+# Start both engines with `npx tsx start.ts` from experiments/multi-engine.
+# Rewind's page is not built here, so the ADE shows its placeholder.
+startup_timeout: 300s
+stop_timeout: 10s
+
+engine:
+  url: ws://127.0.0.1:50034
+
+containers:
+  clock:
+    worker: path://../../../workers/clock
+    environment:
+      PROVIDERS_PORT: "50036"
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  model:
+    worker: path://../../../workers/model
+    environment:
+      MODEL_SEED: "${MODEL_SEED:-412}"
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  # The failure experiment kills this worker mid-call, so compose brings it back the way it does tools.
+  # Compose gives up after 5 restarts unless the worker stays up for 60 s, and then stops the agent,
+  # traffic and Rewind, which start after it. The experiment kills it more often than that.
+  bridge:
+    worker: package://bridge
+    version: "0.1.18"
+    restart:
+      condition: always
+      max_attempts: 100
+    config_override:
+      url: ws://127.0.0.1:50134
+      forward:
+        - local_function: calendar::find-slot
+          remote_function: calendar::find-slot
+        - local_function: email::send
+          remote_function: email::send
+        - local_function: probe::echo
+          remote_function: probe::echo
+
+  agent:
+    worker: path://../../../workers/agent
+    start_after: [clock, model, bridge]
+    environment:
+      HOLIDAYS_URL: http://127.0.0.1:50036
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  traffic:
+    worker: path://../../../workers/traffic
+    start_after: [agent]
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  rewind:
+    worker: path://../../../workers/rewind
+    start_after: [agent]
+    environment:
+      HOLIDAYS_URL: http://127.0.0.1:50036
+    scripts:
+      pre_run: cargo build --release
+      pre_run_timeout: 10m
+
+  ade:
+    worker: package://ade
+    version: "1.9.72"
+    config_override:
+      http_host: 127.0.0.1
+      http_port: 4033

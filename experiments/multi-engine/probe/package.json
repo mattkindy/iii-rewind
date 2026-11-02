@@ -1,0 +1,12 @@
+{
+  "name": "probe",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx src/worker.ts"
+  },
+  "dependencies": {
+    "iii-sdk": "0.25.0",
+    "tsx": "4.19.2"
+  }
+}

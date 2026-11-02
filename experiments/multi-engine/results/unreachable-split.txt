@@ -1,0 +1,17 @@
+Engine B unreachable, 2026-10-31T16:04:36.065Z
+1. SIGSTOP engine B (pid 62897) 200 ms into a find-slot call
+  the call in flight: {"error":{"code":"bridge_error","message":"bridge_error: invocation timed out"}}, 29.82 s after B's engine stopped
+  a call sent while frozen: {"error":{"code":"bridge_error","message":"bridge_error: invocation timed out"}}, 30.00 s after B's engine stopped
+  SIGCONT, then a new call got a result in 0.86 s
+2. SIGKILL engine B (pid 62897) 200 ms into a find-slot and an email::send
+  find-slot in flight: {"error":{"code":"bridge_error","message":"bridge_error: invocation timed out"}}, 29.80 s after B's engine stopped
+  email::send in flight: {"error":{"code":"bridge_error","message":"bridge_error: invocation timed out"}}, 29.80 s after B's engine stopped
+  a find-slot sent after the kill: {"error":{"code":"bridge_error","message":"bridge_error: invocation timed out"}}, 59.81 s after B's engine stopped
+  outbox lines with this send's subject 4 s later: 1
+  retry 1: {"error":{"code":"TIMEOUT","message":"TIMEOUT: invocation timed out after 2000ms"}}, 65.81 s after B's engine stopped
+  retry 20: {"error":{"code":"TIMEOUT","message":"TIMEOUT: invocation timed out after 2000ms"}}, 122.87 s after B's engine stopped
+  calls through A did not work again within 20 s
+3. Killing engine B also stopped B's compose daemon and every worker on B, and nothing restarted them.
+   Engine B's compose started again by hand:
+  attempt 0 at 1.1 s: bridge_error: remote error (function_not_found): Function calendar::find-slot not found in namespace default.
+  tools listed on B 2.3 s after compose started; find-slot through A worked 2.8 s after

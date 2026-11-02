@@ -1,0 +1,13 @@
+iii: v1
+name: clock
+language: typescript
+description: Tells the scheduling agent the current time in America/Chicago (clock::now), and runs the fake holiday and email providers over HTTP.
+
+runtime:
+  kind: node
+
+# The start command runs one node process, so a signal sent to it reaches the worker itself.
+# Rewind's preload records each request to the providers server as the root of a run.
+scripts:
+  install: npm install --no-audit --no-fund
+  start: node --import tsx --import ../rewind/preload/node/index.mjs src/worker.ts

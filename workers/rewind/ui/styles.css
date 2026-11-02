@@ -1,0 +1,2913 @@
+/*
+ * Rewind's console stylesheet, scoped under [data-iii-ui="rewind"]. Chrome comes
+ * from @iii-dev/console-ui. This file lays out the levels (the landing, one run,
+ * lost work, a check, one lost run) and draws the page's own data views: the
+ * calls of a run, their lanes, and the branch graph. Console tokens only.
+ *
+ * An open call is one block: its row and what opens under it share a raised
+ * background, so there is no separate inspector and no outline.
+ */
+
+[data-iii-ui="rewind"] .rw-shell {
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+[data-iii-ui="rewind"] .rw-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-iii-ui="rewind"] .rw-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-ink-ghost);
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+[data-iii-ui="rewind"] .rw-chip {
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── header ───────────────────────────────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  font-size: 11px;
+  color: var(--color-ink-ghost);
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-menu-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+[data-iii-ui="rewind"] .rw-menu-meta {
+  font-size: 12px;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-menu-error {
+  margin: 6px 8px;
+  font-size: 12px;
+  color: var(--color-alert-strong);
+}
+
+/* ── every level ─────────────────────────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+[data-iii-ui="rewind"] .rw-run {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-iii-ui="rewind"] .rw-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+[data-iii-ui="rewind"] .rw-crumbs {
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-group-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+[data-iii-ui="rewind"] .rw-position {
+  margin: 0 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-faint);
+  white-space: nowrap;
+}
+
+/* The landing and the list levels read as one centered column. */
+[data-iii-ui="rewind"] .rw-landing,
+[data-iii-ui="rewind"] .rw-level {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+[data-iii-ui="rewind"] .rw-level {
+  gap: 20px;
+  padding-top: 24px;
+}
+
+[data-iii-ui="rewind"] .rw-level-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+[data-iii-ui="rewind"] .rw-level-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+[data-iii-ui="rewind"] .rw-level-head p {
+  max-width: 64ch;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-level-head .rw-actions {
+  margin-top: 4px;
+}
+
+[data-iii-ui="rewind"] .rw-landing-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+[data-iii-ui="rewind"] .rw-landing-row {
+  min-width: 0;
+  transition: background-color var(--motion-duration-panel) var(--motion-ease-standard);
+}
+
+/* A row whose count grew is lit for a moment; a row that is new rises into place. */
+[data-iii-ui="rewind"] .rw-landing-row[data-changed] {
+  background: var(--color-surface-hover);
+}
+
+[data-iii-ui="rewind"] .rw-landing-row[data-new] {
+  animation: rewind-rise var(--motion-duration-panel) var(--motion-ease-enter);
+}
+
+@keyframes rewind-rise {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+@keyframes rewind-appear {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The last minute of runs, newest on the right. */
+[data-iii-ui="rewind"] .rw-activity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 20px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-activity[data-quiet] {
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-activity-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 240px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--color-surface);
+}
+
+[data-iii-ui="rewind"] .rw-activity-dot {
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-ink-faint);
+  transform: translate(-50%, -50%);
+  animation: rewind-appear var(--motion-duration-panel) var(--motion-ease-enter);
+}
+
+[data-iii-ui="rewind"] .rw-activity-dot[data-tone="ok"] {
+  background: var(--color-ok);
+}
+
+[data-iii-ui="rewind"] .rw-activity-dot[data-tone="warn"] {
+  background: var(--color-warn);
+}
+
+[data-iii-ui="rewind"] .rw-activity-dot[data-tone="alert"] {
+  background: var(--color-alert);
+}
+
+[data-iii-ui="rewind"] .rw-landing-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+[data-iii-ui="rewind"] .rw-landing-trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--color-ink-faint);
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-landing-trailing > svg {
+  width: 16px;
+  height: 16px;
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-landing-count,
+[data-iii-ui="rewind"] .rw-recency {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-iii-ui="rewind"] .rw-recency {
+  min-width: 64px;
+  color: var(--color-ink-ghost);
+  text-align: right;
+}
+
+[data-iii-ui="rewind"] .rw-landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: -8px;
+}
+
+[data-iii-ui="rewind"] .rw-run-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-run-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-ghost);
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-side-note {
+  margin: 4px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-live-offer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 0 8px;
+}
+
+/* ── one run ─────────────────────────────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-mast {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 24px 12px;
+}
+
+[data-iii-ui="rewind"] .rw-mast-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-mast-title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-mast-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
+  margin: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-mast-meta > span + span::before {
+  content: "·";
+  margin: 0 8px;
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-mast-end {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+/* Notes end where an open call's body ends, so the run reads as one column. */
+[data-iii-ui="rewind"] .rw-run-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 870px;
+  padding: 4px 24px 12px;
+}
+
+[data-iii-ui="rewind"] .rw-run-notes:empty {
+  display: none;
+}
+
+[data-iii-ui="rewind"] .rw-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+[data-iii-ui="rewind"] .rw-banner-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+[data-iii-ui="rewind"] .rw-progress-detail {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* The switcher between the original and the forks someone made. */
+[data-iii-ui="rewind"] .rw-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px;
+  overflow-x: auto;
+}
+
+[data-iii-ui="rewind"] .rw-switch-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-switch-outcome {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* Status inks for the page's own text and marks. The console's StatusDot and
+   Chip also use data-tone, so these never match a bare [data-tone]. */
+[data-iii-ui="rewind"] :is(.rw-switch-outcome, .rw-cmp-ending, .rw-path-outcome)[data-tone="success"],
+[data-iii-ui="rewind"] :is(.rw-line-outcome, .rw-node-end, .rw-end-mark, .rw-end-label, .rw-seq-ending, .rw-verdict)[data-tone="ok"] {
+  color: var(--color-ok);
+}
+
+[data-iii-ui="rewind"] :is(.rw-switch-outcome, .rw-cmp-ending, .rw-path-outcome)[data-tone="danger"],
+[data-iii-ui="rewind"] :is(.rw-line-outcome, .rw-node-end, .rw-end-mark, .rw-end-label, .rw-seq-ending, .rw-verdict)[data-tone="alert"] {
+  color: var(--color-alert-strong);
+}
+
+[data-iii-ui="rewind"] :is(.rw-switch-outcome, .rw-cmp-ending, .rw-path-outcome)[data-tone="warning"],
+[data-iii-ui="rewind"] :is(.rw-line-outcome, .rw-node-end, .rw-end-mark, .rw-end-label, .rw-seq-ending, .rw-verdict)[data-tone="warn"] {
+  color: var(--color-warn-strong);
+}
+
+[data-iii-ui="rewind"] :is(.rw-switch-outcome, .rw-cmp-ending, .rw-path-outcome)[data-tone="neutral"],
+[data-iii-ui="rewind"] :is(.rw-line-outcome, .rw-node-end, .rw-end-mark, .rw-end-label, .rw-seq-ending)[data-tone="ink"],
+[data-iii-ui="rewind"] .rw-verdict[data-tone="ghost"] {
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-end-mark[data-tone="alert"] > svg {
+  fill: var(--color-alert-muted);
+}
+
+[data-iii-ui="rewind"] .rw-end-mark[data-tone="ok"] > svg {
+  fill: var(--color-ok-muted);
+}
+
+/* ── the branch graph, behind a toggle on the switcher ──────────────── */
+
+[data-iii-ui="rewind"] .rw-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 12px 0;
+  padding: 6px;
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+[data-iii-ui="rewind"] .rw-line {
+  display: grid;
+  grid-template-columns: 188px var(--rw-track) minmax(120px, 1fr);
+  align-items: center;
+  height: 32px;
+  border-radius: var(--radius-md);
+}
+
+[data-iii-ui="rewind"] .rw-line[data-current] {
+  background: var(--color-surface-selected);
+}
+
+[data-iii-ui="rewind"] .rw-line-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-ink-faint);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+[data-iii-ui="rewind"] .rw-line-label > svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+[data-iii-ui="rewind"] .rw-line-label[aria-pressed="true"] {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+[data-iii-ui="rewind"] .rw-line-label:focus-visible,
+[data-iii-ui="rewind"] .rw-node:focus-visible,
+[data-iii-ui="rewind"] .rw-node-end:focus-visible {
+  outline: 2px solid var(--color-rule-focus);
+  outline-offset: 1px;
+}
+
+[data-iii-ui="rewind"] .rw-line-name {
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-line-meta {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-ink-ghost);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-line-track {
+  position: relative;
+  height: 32px;
+}
+
+[data-iii-ui="rewind"] .rw-line-rail {
+  position: absolute;
+  top: 50%;
+  height: 1.5px;
+  background: var(--color-ink-ghost);
+  transform: translateY(-50%);
+}
+
+[data-iii-ui="rewind"] .rw-line-branch {
+  position: absolute;
+  bottom: 50%;
+  border-bottom: 1.5px solid var(--color-ink-ghost);
+  border-left: 1.5px solid var(--color-ink-ghost);
+  border-bottom-left-radius: var(--radius-md);
+  pointer-events: none;
+}
+
+[data-iii-ui="rewind"] .rw-node,
+[data-iii-ui="rewind"] .rw-node-end {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+
+[data-iii-ui="rewind"] .rw-node::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-ink-ghost);
+  box-shadow: 0 0 0 2px var(--color-panel);
+}
+
+[data-iii-ui="rewind"] .rw-node[data-source="edited"]::before,
+[data-iii-ui="rewind"] .rw-node[data-source="typed"]::before {
+  background: var(--color-ink);
+}
+
+[data-iii-ui="rewind"] .rw-node[data-source="live"]::before {
+  background: var(--color-panel);
+  box-shadow: inset 0 0 0 1.5px var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-node[data-source="filled"]::before {
+  background: var(--color-panel);
+  box-shadow: inset 0 0 0 1.5px var(--color-warn);
+}
+
+[data-iii-ui="rewind"] .rw-node[data-error]::before,
+[data-iii-ui="rewind"] .rw-node[data-source="injected"]::before {
+  background: var(--color-alert);
+}
+
+[data-iii-ui="rewind"] .rw-node:hover,
+[data-iii-ui="rewind"] .rw-node-end:hover {
+  background: var(--color-surface-hover);
+}
+
+[data-iii-ui="rewind"] .rw-node[aria-current="step"],
+[data-iii-ui="rewind"] .rw-node-end[aria-current="step"] {
+  box-shadow: inset 0 0 0 1.5px var(--color-ink);
+}
+
+[data-iii-ui="rewind"] .rw-node-end > svg {
+  width: 16px;
+  height: 16px;
+}
+
+[data-iii-ui="rewind"] .rw-line-outcome {
+  overflow: hidden;
+  padding-left: 8px;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── the calls ───────────────────────────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-seq {
+  --rw-gutter: 44px;
+  --rw-marks: 168px;
+  /* Where an open call's body starts: the gutter, the glyph and the gap after it. */
+  --rw-text-start: calc(var(--rw-gutter) + 30px);
+  padding: 8px 12px 48px;
+}
+
+[data-iii-ui="rewind"] .rw-seq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Rows scrolled into view clear the sticky lane header. */
+[data-iii-ui="rewind"] .rw-seq-item {
+  position: relative;
+  scroll-margin-top: 48px;
+  border-radius: var(--radius-lg);
+}
+
+/* The path a fork took, one line above its calls, in the same column as the notes. */
+[data-iii-ui="rewind"] .rw-path-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  max-width: 870px;
+  margin: 0;
+  padding: 10px 24px 0;
+  font-size: 12px;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-path-line > svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-path-outcome {
+  font-weight: 500;
+}
+
+/* The gutter over each row's number toggles a stop, drawn as a breakpoint's dot. */
+[data-iii-ui="rewind"] .rw-seq-gutter {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  width: var(--rw-gutter);
+  height: 60px;
+  padding: 0 0 0 8px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+[data-iii-ui="rewind"] .rw-seq[data-compact] .rw-seq-gutter {
+  height: 56px;
+}
+
+[data-iii-ui="rewind"] .rw-seq-gutter:disabled {
+  cursor: default;
+}
+
+[data-iii-ui="rewind"] .rw-seq-gutter:focus-visible {
+  outline: 2px solid var(--color-rule-focus);
+  outline-offset: -2px;
+}
+
+[data-iii-ui="rewind"] .rw-stop-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+[data-iii-ui="rewind"] .rw-seq-gutter:not([data-on], :disabled):hover .rw-stop-dot {
+  background: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-seq-gutter[data-on] .rw-stop-dot {
+  background: var(--color-alert);
+}
+
+/* A function's name links to its span in Traces: underlined on hover. */
+[data-iii-ui="rewind"] .rw-fn[data-link] {
+  cursor: pointer;
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+[data-iii-ui="rewind"] .rw-fn[data-link]:hover {
+  text-decoration-color: currentColor;
+}
+
+/* Show in Traces is laid over the end of the row and shows on hover and keyboard focus. */
+[data-iii-ui="rewind"] .rw-seq-trace {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  height: 60px;
+  opacity: 0;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+[data-iii-ui="rewind"] .rw-seq[data-compact] .rw-seq-trace {
+  height: 56px;
+}
+
+[data-iii-ui="rewind"] .rw-seq-row:hover ~ .rw-seq-trace,
+[data-iii-ui="rewind"] .rw-seq-row:focus-visible ~ .rw-seq-trace,
+[data-iii-ui="rewind"] .rw-seq-trace:hover,
+[data-iii-ui="rewind"] .rw-seq-trace:focus-within {
+  opacity: 1;
+}
+
+[data-iii-ui="rewind"] .rw-seq-item:not([data-open]):has(> .rw-seq-trace:hover) > .rw-seq-row {
+  background: var(--color-surface-hover);
+}
+
+/* A disabled button takes no pointer events, so its tooltip hangs on this wrapper. */
+[data-iii-ui="rewind"] .rw-tip-target {
+  display: inline-flex;
+  border-radius: var(--radius-md);
+}
+
+[data-iii-ui="rewind"] .rw-tip-target > button:disabled {
+  pointer-events: none;
+}
+
+[data-iii-ui="rewind"] .rw-tip-target:focus-visible {
+  outline: 2px solid var(--color-rule-focus);
+  outline-offset: 2px;
+}
+
+[data-iii-ui="rewind"] .rw-cause-line {
+  display: block;
+}
+
+[data-iii-ui="rewind"] .rw-tip-lines {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+[data-iii-ui="rewind"] .rw-tip-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* Tabs for Form and JSON keep apart from a hint beside them. */
+[data-iii-ui="rewind"] .rw-mode {
+  margin-left: 8px;
+}
+
+/* The Stops button wears the same dot while the run has any. */
+[data-iii-ui="rewind"] .rw-stops-trigger[data-on] {
+  position: relative;
+}
+
+[data-iii-ui="rewind"] .rw-stops-trigger[data-on]::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-alert);
+  box-shadow: 0 0 0 2px var(--color-panel);
+}
+
+[data-iii-ui="rewind"] .rw-seq-item[data-open] {
+  margin: 6px 0;
+  background: var(--color-panel-raised);
+  box-shadow: var(--shadow-raised);
+}
+
+[data-iii-ui="rewind"] .rw-seq-head,
+[data-iii-ui="rewind"] .rw-seq-row {
+  display: grid;
+  grid-template-columns: var(--rw-gutter) minmax(0, 1fr) var(--rw-marks);
+}
+
+[data-iii-ui="rewind"] .rw-seq-row {
+  position: relative;
+  width: 100%;
+  height: 60px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+[data-iii-ui="rewind"] .rw-seq-row:hover {
+  background: var(--color-surface-hover);
+}
+
+[data-iii-ui="rewind"] .rw-seq-item[data-open] > .rw-seq-row {
+  cursor: default;
+}
+
+[data-iii-ui="rewind"] .rw-seq-item[data-open] > .rw-seq-row:hover {
+  background: transparent;
+}
+
+[data-iii-ui="rewind"] .rw-seq-row:focus-visible {
+  outline: 2px solid var(--color-rule-focus);
+  outline-offset: -2px;
+}
+
+[data-iii-ui="rewind"] .rw-seq-num {
+  align-self: center;
+  padding-right: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-ghost);
+  text-align: right;
+}
+
+[data-iii-ui="rewind"] .rw-seq-row[aria-current="step"] .rw-seq-num {
+  color: var(--color-ink);
+}
+
+/* The right padding leaves room for Show in Traces, which is laid over it. */
+[data-iii-ui="rewind"] .rw-seq-marks {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  padding-right: 48px;
+  overflow: hidden;
+}
+
+[data-iii-ui="rewind"] .rw-seq-duration {
+  min-width: 44px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-ghost);
+  text-align: right;
+}
+
+[data-iii-ui="rewind"] .rw-seq-expand {
+  padding: 0 20px 20px var(--rw-text-start);
+}
+
+/* The default: a list of calls, each with its worker's glyph and name. */
+[data-iii-ui="rewind"] .rw-seq[data-compact] .rw-seq-row {
+  grid-template-columns: var(--rw-gutter) 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 10px;
+  height: 56px;
+}
+
+[data-iii-ui="rewind"] .rw-seq-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-seq-fn {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-seq-worker {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-seq-ending {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+[data-iii-ui="rewind"] .rw-seq-summary {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--color-ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-seq-summary[data-tone="alert"],
+[data-iii-ui="rewind"] .rw-answer-label[data-tone="alert"] {
+  color: var(--color-alert-strong);
+}
+
+[data-iii-ui="rewind"] .rw-seq-summary[data-tone="warn"],
+[data-iii-ui="rewind"] .rw-answer-label[data-tone="warn"] {
+  color: var(--color-warn-strong);
+}
+
+[data-iii-ui="rewind"] .rw-glyph {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-glyph > svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Worker identity tints, for one glyph or lane dot each. */
+[data-iii-ui="rewind"] [data-tone="blue"] {
+  --rw-tone: var(--color-glyph-blue);
+}
+
+[data-iii-ui="rewind"] [data-tone="teal"] {
+  --rw-tone: var(--color-glyph-teal);
+}
+
+[data-iii-ui="rewind"] [data-tone="purple"] {
+  --rw-tone: var(--color-glyph-purple);
+}
+
+[data-iii-ui="rewind"] [data-tone="amber"] {
+  --rw-tone: var(--color-glyph-amber);
+}
+
+[data-iii-ui="rewind"] [data-tone="green"] {
+  --rw-tone: var(--color-glyph-green);
+}
+
+[data-iii-ui="rewind"] [data-tone="rose"] {
+  --rw-tone: var(--color-glyph-rose);
+}
+
+/* A host outside iii takes no worker's tone. */
+[data-iii-ui="rewind"] [data-tone="outside"] {
+  --rw-tone: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-glyph[data-tone] {
+  color: var(--rw-tone);
+}
+
+[data-iii-ui="rewind"] .rw-end-mark {
+  display: grid;
+  place-items: center;
+}
+
+[data-iii-ui="rewind"] .rw-pause-mark > svg,
+[data-iii-ui="rewind"] .rw-end-mark > svg {
+  width: 16px;
+  height: 16px;
+}
+
+[data-iii-ui="rewind"] .rw-pause-mark > svg {
+  fill: var(--color-warn-muted);
+}
+
+/* Where a call died with its worker. */
+[data-iii-ui="rewind"] .rw-seq-lost {
+  display: grid;
+  grid-template-columns: var(--rw-gutter) minmax(0, 1fr);
+  align-items: center;
+  min-height: 36px;
+  margin: 2px 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-alert-muted);
+}
+
+[data-iii-ui="rewind"] .rw-seq-lost-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 0;
+  font-size: 12px;
+  color: var(--color-alert-strong);
+}
+
+[data-iii-ui="rewind"] .rw-seq-lost-body > svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+/* ── lanes, behind "Show workers" ────────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-seq-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 44px;
+  background: var(--color-panel);
+}
+
+[data-iii-ui="rewind"] .rw-seq-track {
+  position: relative;
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-lane-head {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% / var(--rw-lanes));
+  height: 24px;
+  padding: 0 10px 0 8px;
+  border-radius: 9999px;
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+}
+
+[data-iii-ui="rewind"] .rw-lane-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-iii-ui="rewind"] .rw-lane-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-edge);
+}
+
+[data-iii-ui="rewind"] .rw-call-label,
+[data-iii-ui="rewind"] .rw-answer-label,
+[data-iii-ui="rewind"] .rw-end-label {
+  position: absolute;
+  right: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-call-label {
+  top: 9px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink);
+}
+
+[data-iii-ui="rewind"] .rw-answer-label {
+  top: 40px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-arrow {
+  position: absolute;
+  top: 29px;
+  height: 0;
+  border-top: 1.5px solid var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-arrow::after {
+  content: "";
+  position: absolute;
+  top: -4.75px;
+  right: 3px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 7px solid var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-arrow[data-kind="paused"] {
+  border-top: 1.5px dashed var(--color-warn);
+}
+
+[data-iii-ui="rewind"] .rw-arrow[data-kind="paused"]::after {
+  right: 8px;
+  border-left-color: var(--color-warn);
+}
+
+[data-iii-ui="rewind"] .rw-return {
+  position: absolute;
+  top: 36px;
+  height: 0;
+  border-top: 1px dashed var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-return[data-error] {
+  border-top-color: var(--color-alert);
+}
+
+[data-iii-ui="rewind"] .rw-dot {
+  position: absolute;
+  top: 29px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--rw-tone, var(--color-ink-faint));
+  box-shadow: 0 0 0 2px var(--color-panel);
+  transform: translate(-50%, -50%);
+}
+
+[data-iii-ui="rewind"] .rw-seq-track .rw-pause-mark,
+[data-iii-ui="rewind"] .rw-seq-track .rw-end-mark {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+[data-iii-ui="rewind"] .rw-seq-track .rw-pause-mark {
+  top: 29px;
+  display: grid;
+  place-items: center;
+  color: var(--color-warn);
+}
+
+[data-iii-ui="rewind"] .rw-seq-track .rw-end-mark {
+  top: 50%;
+}
+
+[data-iii-ui="rewind"] .rw-end-label {
+  top: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+[data-iii-ui="rewind"] .rw-seq-row[data-kind="end"] .rw-answer-label {
+  top: 32px;
+  font-family: var(--font-mono);
+}
+
+/* ── an open call ────────────────────────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-insp-body,
+[data-iii-ui="rewind"] .rw-decision {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 760px;
+}
+
+[data-iii-ui="rewind"] .rw-path {
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+
+[data-iii-ui="rewind"] .rw-section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* JsonHighlight brings its own surface and padding; this only bounds it. */
+[data-iii-ui="rewind"] .rw-code {
+  max-height: 340px;
+  overflow: auto;
+  border-radius: var(--radius-lg);
+  font-size: 12px;
+}
+
+[data-iii-ui="rewind"] .rw-code[data-preview] {
+  max-height: 240px;
+}
+
+[data-iii-ui="rewind"] .rw-code > * {
+  margin: 0;
+}
+
+/* JSON text inside an answer, shown as text, with where parsing stops. */
+[data-iii-ui="rewind"] .rw-embedded {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  font-family: var(--font-code);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+[data-iii-ui="rewind"] .rw-embedded-rest {
+  background: var(--color-alert-muted);
+  color: var(--color-alert-strong);
+}
+
+[data-iii-ui="rewind"] .rw-embedded-stop {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: var(--color-alert-muted);
+  color: var(--color-alert-strong);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-wrap {
+  font-family: var(--font-code);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+[data-iii-ui="rewind"] .rw-meta {
+  font-size: 12px;
+}
+
+[data-iii-ui="rewind"] .rw-finding {
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+[data-iii-ui="rewind"] .rw-finding * {
+  word-break: normal;
+}
+
+/* Details is a quiet disclosure under the actions, without a card's frame. */
+[data-iii-ui="rewind"] .rw-collapse {
+  margin-left: -8px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-iii-ui="rewind"] .rw-collapse-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  height: 28px;
+  padding: 0 10px 0 6px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-collapse-trigger:hover {
+  color: var(--color-ink);
+}
+
+[data-iii-ui="rewind"] .rw-collapse-caret {
+  width: 16px;
+  height: 16px;
+  transition: transform var(--motion-duration-control) var(--motion-ease-standard);
+}
+
+[data-iii-ui="rewind"] .rw-collapse-trigger[aria-expanded="true"] .rw-collapse-caret {
+  transform: rotate(90deg);
+}
+
+[data-iii-ui="rewind"] .rw-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0 4px 8px;
+}
+
+/* ── editing an answer ───────────────────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-editor,
+[data-iii-ui="rewind"] .rw-typed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-editor-frame {
+  min-height: 96px;
+  max-height: 360px;
+  overflow: auto;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+[data-iii-ui="rewind"] .rw-verdict {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+}
+
+[data-iii-ui="rewind"] .rw-verdict > svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+/* The answer as a form: a label column and a control column, with nested objects indented. */
+[data-iii-ui="rewind"] .rw-form,
+[data-iii-ui="rewind"] .rw-form-note {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+[data-iii-ui="rewind"] .rw-form-note {
+  font-size: 12px;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-field {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
+  align-items: start;
+  gap: 4px 12px;
+}
+
+[data-iii-ui="rewind"] .rw-field-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 32px;
+  font-size: 12px;
+}
+
+[data-iii-ui="rewind"] .rw-field-label[data-described] {
+  cursor: help;
+}
+
+[data-iii-ui="rewind"] .rw-field-name {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-field-required {
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-field-type {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--color-ink-ghost);
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-field-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-field-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-field-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+[data-iii-ui="rewind"] .rw-field-select {
+  min-width: 200px;
+}
+
+[data-iii-ui="rewind"] .rw-field-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-alert-strong);
+}
+
+[data-iii-ui="rewind"] .rw-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+[data-iii-ui="rewind"] .rw-field-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+[data-iii-ui="rewind"] .rw-field-children {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 16px;
+}
+
+[data-iii-ui="rewind"] .rw-diff {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  font-size: 12px;
+}
+
+/* The commit button stays reachable while a long diff or editor scrolls. Its
+   background matches the open call it belongs to. */
+[data-iii-ui="rewind"] .rw-editor > .rw-actions,
+[data-iii-ui="rewind"] .rw-decision > .rw-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: 10px 0 2px;
+  background: var(--color-panel-raised);
+}
+
+/* ── the decision at a paused call ───────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-decision-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
+[data-iii-ui="rewind"] .rw-decision-copy h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+[data-iii-ui="rewind"] .rw-decision-copy h3 code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+[data-iii-ui="rewind"] .rw-decision-copy p {
+  max-width: 64ch;
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-decision-input code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink-faint);
+  overflow-wrap: anywhere;
+}
+
+[data-iii-ui="rewind"] .rw-choices {
+  gap: 2px;
+  margin: 0 -8px;
+}
+
+[data-iii-ui="rewind"] .rw-choices .iii-ui-list-item__description {
+  white-space: normal;
+}
+
+[data-iii-ui="rewind"] .rw-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--color-ink-faint);
+  cursor: pointer;
+}
+
+/* ── one decision for a group of waiting runs ────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-group-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* A group is short and the next group follows it, so its button stays where it is. */
+[data-iii-ui="rewind"] .rw-decision.rw-group > .rw-actions {
+  position: static;
+  padding-top: 2px;
+}
+
+[data-iii-ui="rewind"] .rw-group .rw-decision-copy p code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+[data-iii-ui="rewind"] .rw-failures {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-iii-ui="rewind"] .rw-failures li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+[data-iii-ui="rewind"] .rw-failures .rw-mono {
+  color: var(--color-ink-faint);
+  overflow-wrap: anywhere;
+}
+
+/* ── a batch of runs while it runs ───────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-batch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  container-type: inline-size;
+}
+
+/* The panel's text column is only as wide as its text, so the bar takes the panel's width less its icon and padding. */
+[data-iii-ui="rewind"] .rw-batch-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: calc(100cqi - 72px);
+  padding-top: 4px;
+}
+
+[data-iii-ui="rewind"] .rw-batch-tally {
+  font-size: 12px;
+  color: var(--color-ink-faint);
+}
+
+/* One segment per run, filling left to right as each one finishes. */
+[data-iii-ui="rewind"] .rw-batch-bar {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+}
+
+[data-iii-ui="rewind"] .rw-batch-bar > span {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--color-ink-ghost) 40%, transparent);
+  transition: background-color var(--motion-duration-panel) var(--motion-ease-standard);
+}
+
+[data-iii-ui="rewind"] .rw-batch-bar > span[data-step="running"] {
+  background: var(--color-accent);
+  animation: rewind-breathe calc(var(--motion-duration-panel) * 4) var(--motion-ease-standard) infinite alternate;
+}
+
+[data-iii-ui="rewind"] .rw-batch-bar > span[data-tone="ok"] {
+  background: var(--color-ok);
+}
+
+[data-iii-ui="rewind"] .rw-batch-bar > span[data-tone="warn"] {
+  background: var(--color-warn);
+}
+
+[data-iii-ui="rewind"] .rw-batch-bar > span[data-tone="alert"] {
+  background: var(--color-alert);
+}
+
+[data-iii-ui="rewind"] .rw-batch-bar > span[data-step="landed"][data-tone="ink"] {
+  background: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-batch-row {
+  min-width: 0;
+  border-radius: 6px;
+}
+
+[data-iii-ui="rewind"] .rw-batch-row[data-tone="ink"] svg {
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-batch-row[data-tone="accent"] svg {
+  color: var(--color-accent);
+}
+
+[data-iii-ui="rewind"] .rw-batch-row[data-tone="ok"] svg {
+  color: var(--color-ok);
+}
+
+[data-iii-ui="rewind"] .rw-batch-row[data-tone="warn"] svg {
+  color: var(--color-warn);
+}
+
+[data-iii-ui="rewind"] .rw-batch-row[data-tone="alert"] svg {
+  color: var(--color-alert);
+}
+
+[data-iii-ui="rewind"] .rw-batch-row[data-step="waiting"] .rw-run-label,
+[data-iii-ui="rewind"] .rw-batch-row[data-step="waiting"] .rw-batch-note {
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-batch-row[data-step="running"] {
+  background: var(--color-surface-hover);
+}
+
+[data-iii-ui="rewind"] .rw-batch-note {
+  font-size: 12px;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-batch-row[data-step="failed"] .rw-batch-note {
+  font-family: var(--font-mono);
+  color: var(--color-alert);
+}
+
+/* A run that finishes lands: its icon pops in and the row lights for a moment. */
+[data-iii-ui="rewind"] .rw-batch-row:is([data-step="landed"], [data-step="failed"]) {
+  animation: rewind-light calc(var(--motion-duration-panel) * 3) var(--motion-ease-exit);
+}
+
+[data-iii-ui="rewind"] .rw-batch-row:is([data-step="landed"], [data-step="failed"]) svg {
+  animation: rewind-pop var(--motion-duration-panel) var(--motion-ease-enter);
+}
+
+@keyframes rewind-breathe {
+  to {
+    opacity: 0.45;
+  }
+}
+
+@keyframes rewind-light {
+  from {
+    background: var(--color-surface-selected);
+  }
+}
+
+@keyframes rewind-pop {
+  from {
+    scale: 0.4;
+    opacity: 0;
+  }
+
+  60% {
+    scale: 1.2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-iii-ui="rewind"] .rw-batch *,
+  [data-iii-ui="rewind"] .rw-batch-row,
+  [data-iii-ui="rewind"] .rw-landing-row[data-new] {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* ── compare ─────────────────────────────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 870px;
+  padding: 16px 24px 48px;
+}
+
+[data-iii-ui="rewind"] .rw-cmp-seq {
+  width: 52px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-cmp-table tr[data-change="answer"] > td {
+  background: var(--color-accent-muted);
+}
+
+[data-iii-ui="rewind"] .rw-cmp-table tr[data-change="added"] > td {
+  background: var(--color-ok-muted);
+}
+
+[data-iii-ui="rewind"] .rw-cmp-table tr[data-change="removed"] > td {
+  background: var(--color-alert-muted);
+}
+
+[data-iii-ui="rewind"] .rw-cmp-table tr[data-change="input"] > td,
+[data-iii-ui="rewind"] .rw-cmp-table tr[data-change="call"] > td {
+  background: var(--color-warn-muted);
+}
+
+[data-iii-ui="rewind"] .rw-cmp-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-cmp-fn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-iii-ui="rewind"] .rw-cmp-summary {
+  font-size: 12px;
+  color: var(--color-ink-faint);
+  overflow-wrap: anywhere;
+}
+
+[data-iii-ui="rewind"] .rw-cmp-none {
+  font-size: 12px;
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-cmp-ending {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ── saving a test ───────────────────────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-test {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+[data-iii-ui="rewind"] .rw-test-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-iii-ui="rewind"] .rw-test-name {
+  width: min(320px, 100%);
+  font-family: var(--font-mono);
+}
+
+[data-iii-ui="rewind"] .rw-test-head {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-iii-ui="rewind"] .rw-test-head code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* ── one lost run ────────────────────────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-recovery {
+  display: flex;
+  flex-direction: column;
+  max-width: 780px;
+  padding: 8px 24px 48px;
+}
+
+[data-iii-ui="rewind"] .rw-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 14px;
+  padding-bottom: 28px;
+}
+
+[data-iii-ui="rewind"] .rw-step::before {
+  content: "";
+  position: absolute;
+  top: 34px;
+  bottom: 6px;
+  left: 13.5px;
+  width: 1px;
+  background: var(--color-edge);
+}
+
+[data-iii-ui="rewind"] .rw-step[data-last]::before {
+  display: none;
+}
+
+[data-iii-ui="rewind"] .rw-step-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-step-icon > svg {
+  width: 16px;
+  height: 16px;
+}
+
+[data-iii-ui="rewind"] .rw-step[data-tone="ok"] > .rw-step-icon {
+  background: var(--color-ok-muted);
+  color: var(--color-ok);
+}
+
+[data-iii-ui="rewind"] .rw-step[data-tone="alert"] > .rw-step-icon {
+  background: var(--color-alert-muted);
+  color: var(--color-alert-strong);
+}
+
+[data-iii-ui="rewind"] .rw-step[data-tone="warn"] > .rw-step-icon {
+  background: var(--color-warn-muted);
+  color: var(--color-warn-strong);
+}
+
+[data-iii-ui="rewind"] .rw-step[data-tone="teal"] > .rw-step-icon {
+  color: var(--color-glyph-teal);
+}
+
+[data-iii-ui="rewind"] .rw-step[data-tone="accent"] > .rw-step-icon {
+  color: var(--color-ink);
+}
+
+[data-iii-ui="rewind"] .rw-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-step-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+[data-iii-ui="rewind"] .rw-step-aside {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-step-text {
+  max-width: 64ch;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-ink-faint);
+}
+
+/* A waiting call's decision, and a group's, use the same raised background as an open call. */
+[data-iii-ui="rewind"] .rw-step .rw-decision,
+[data-iii-ui="rewind"] .rw-group {
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--color-panel-raised);
+  box-shadow: var(--shadow-raised);
+}
+
+/* One grid for every row, so function names and answers line up in columns. */
+[data-iii-ui="rewind"] .rw-call-rows {
+  display: grid;
+  grid-template-columns: 16px max-content minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  font-size: 12px;
+  list-style: none;
+}
+
+[data-iii-ui="rewind"] .rw-call-row {
+  display: contents;
+}
+
+[data-iii-ui="rewind"] .rw-call-row > * {
+  margin: 7px 0;
+}
+
+/* Every row starts at the glyph column, whether or not it has a chip. */
+[data-iii-ui="rewind"] .rw-call-row > .rw-glyph {
+  grid-column: 1;
+}
+
+[data-iii-ui="rewind"] .rw-call-summary {
+  overflow: hidden;
+  color: var(--color-ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── requests around iii, and where a worker failed ──────────────────── */
+
+[data-iii-ui="rewind"] .rw-seq-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-iii-ui="rewind"] .rw-request-line {
+  display: block;
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  font-family: var(--font-code);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+[data-iii-ui="rewind"] .rw-request-method {
+  font-weight: 600;
+}
+
+[data-iii-ui="rewind"] .rw-inner-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-iii-ui="rewind"] .rw-inner-head,
+[data-iii-ui="rewind"] .rw-span-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+}
+
+[data-iii-ui="rewind"] .rw-inner-head > svg,
+[data-iii-ui="rewind"] .rw-span-head > svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-span-head > svg {
+  color: var(--color-alert-strong);
+}
+
+[data-iii-ui="rewind"] .rw-inner-name {
+  flex-shrink: 0;
+}
+
+[data-iii-ui="rewind"] .rw-inner-summary {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--color-ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-span {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+[data-iii-ui="rewind"] .rw-span-file {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-span-message {
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-alert-muted);
+  color: var(--color-alert-strong);
+}
+
+/* A call whose worker made a request outside iii has a ring on its bar where the request went out. */
+[data-iii-ui="rewind"] .rw-wf-inner {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-panel);
+  box-shadow: inset 0 0 0 1.5px var(--color-ink);
+  transform: translate(-50%, -50%);
+}
+
+[data-iii-ui="rewind"] .rw-wf-row[data-label="below"] .rw-wf-inner {
+  top: 13px;
+}
+
+/* The hidden @trace mention the page clicks to open a trace on a console without host.traces. */
+[data-iii-ui="rewind"] .rw-trace-mention {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  pointer-events: none;
+}
+
+/* ── the player, in place of the calls ───────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-run-notes[hidden] {
+  display: none;
+}
+
+[data-iii-ui="rewind"] .rw-player {
+  --rw-wf-name: 220px;
+  --rw-wf-ms: 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 24px 48px;
+}
+
+/* Grows on a phone, where the console makes segmented items 44px tall. */
+[data-iii-ui="rewind"] .rw-player-bar {
+  height: auto;
+  min-height: 36px;
+  border-radius: var(--radius-lg);
+}
+
+[data-iii-ui="rewind"] .rw-player-estimated {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--color-ink-ghost);
+  white-space: nowrap;
+  cursor: help;
+}
+
+[data-iii-ui="rewind"] .rw-player-estimated > svg {
+  width: 16px;
+  height: 16px;
+}
+
+[data-iii-ui="rewind"] .rw-player-estimated:focus-visible {
+  outline: 2px solid var(--color-rule-focus);
+  outline-offset: 2px;
+}
+
+[data-iii-ui="rewind"] .rw-player-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Wide enough for the longest time, so the text after it does not shift as it counts. */
+[data-iii-ui="rewind"] .rw-player-now {
+  min-width: 68px;
+  color: var(--color-ink);
+  text-align: right;
+}
+
+[data-iii-ui="rewind"] .rw-player-total {
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-player-where {
+  min-width: 0;
+  margin-left: 10px;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--color-ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-speed .iii-ui-segmented__item {
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-iii-ui="rewind"] .rw-player-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+  align-items: start;
+  gap: 16px 32px;
+}
+
+@keyframes rewind-land {
+  from {
+    opacity: 0;
+    translate: -4px 0;
+  }
+}
+
+/* The waterfall: the function, then one shared time axis, then each call's time. */
+[data-iii-ui="rewind"] .rw-wf {
+  position: relative;
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-wf-axis,
+[data-iii-ui="rewind"] .rw-wf-row {
+  display: grid;
+  grid-template-columns: var(--rw-wf-name) minmax(0, 1fr) var(--rw-wf-ms);
+  align-items: center;
+}
+
+[data-iii-ui="rewind"] .rw-wf-axis {
+  height: 36px;
+}
+
+[data-iii-ui="rewind"] .rw-wf-axis-start,
+[data-iii-ui="rewind"] .rw-wf-axis-end,
+[data-iii-ui="rewind"] .rw-wf-ms {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-ghost);
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-wf-axis-start {
+  padding-right: 12px;
+  text-align: right;
+}
+
+[data-iii-ui="rewind"] .rw-wf-axis-end,
+[data-iii-ui="rewind"] .rw-wf-ms {
+  padding-left: 12px;
+}
+
+[data-iii-ui="rewind"] .rw-wf-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-iii-ui="rewind"] .rw-wf-row {
+  position: relative;
+  width: 100%;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+}
+
+[data-iii-ui="rewind"] .rw-wf-row[data-kind="run"] {
+  height: 34px;
+}
+
+[data-iii-ui="rewind"] .rw-wf-row[data-gave-up] {
+  height: 46px;
+}
+
+[data-iii-ui="rewind"] button.rw-wf-row {
+  cursor: pointer;
+}
+
+[data-iii-ui="rewind"] button.rw-wf-row:hover {
+  background: var(--color-surface-hover);
+}
+
+[data-iii-ui="rewind"] .rw-wf-row[aria-current="step"] {
+  background: var(--color-surface-selected);
+}
+
+[data-iii-ui="rewind"] .rw-wf-row:focus-visible {
+  outline: 2px solid var(--color-rule-focus);
+  outline-offset: -2px;
+}
+
+[data-iii-ui="rewind"] .rw-wf-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 12px 0 4px;
+}
+
+[data-iii-ui="rewind"] .rw-wf-num {
+  flex-shrink: 0;
+  width: 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-ghost);
+  text-align: right;
+}
+
+[data-iii-ui="rewind"] .rw-wf-fn {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-wf-row[data-state="ahead"] .rw-wf-fn {
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-wf-row[data-kind="run"] .rw-wf-fn,
+[data-iii-ui="rewind"] .rw-wf-row[data-state="running"] .rw-wf-fn,
+[data-iii-ui="rewind"] .rw-wf-row[aria-current="step"] .rw-wf-fn {
+  color: var(--color-ink);
+}
+
+[data-iii-ui="rewind"] .rw-wf-track {
+  position: relative;
+  height: 100%;
+}
+
+[data-iii-ui="rewind"] .rw-wf-ghost,
+[data-iii-ui="rewind"] .rw-wf-bar,
+[data-iii-ui="rewind"] .rw-wf-after {
+  position: absolute;
+  top: 50%;
+  height: 10px;
+  border-radius: 9999px;
+  transform: translateY(-50%);
+}
+
+[data-iii-ui="rewind"] .rw-wf-ghost {
+  background: var(--color-surface);
+}
+
+[data-iii-ui="rewind"] .rw-wf-bar {
+  background: color-mix(in srgb, var(--rw-tone, var(--color-ink-faint)) 78%, transparent);
+}
+
+[data-iii-ui="rewind"] .rw-wf-bar[data-error] {
+  background: var(--color-alert);
+}
+
+/* The run's own bar is neutral until it ends, then takes the ending's status tint. */
+[data-iii-ui="rewind"] .rw-wf-bar[data-kind="run"] {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 18px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-ink) 22%, transparent);
+}
+
+[data-iii-ui="rewind"] .rw-wf-bar[data-kind="run"][data-tone="alert"] {
+  background: var(--color-alert-muted);
+}
+
+[data-iii-ui="rewind"] .rw-wf-bar[data-kind="run"][data-tone="ok"] {
+  background: var(--color-ok-muted);
+}
+
+[data-iii-ui="rewind"] .rw-wf-bar[data-kind="run"][data-tone="warn"] {
+  background: var(--color-warn-muted);
+}
+
+[data-iii-ui="rewind"] .rw-wf-ending {
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-ink-faint);
+  white-space: nowrap;
+  animation: rewind-land var(--motion-duration-panel) var(--motion-ease-enter);
+}
+
+[data-iii-ui="rewind"] .rw-wf-bar[data-tone="alert"] > .rw-wf-ending {
+  color: var(--color-alert-strong);
+}
+
+[data-iii-ui="rewind"] .rw-wf-bar[data-tone="ok"] > .rw-wf-ending {
+  color: var(--color-ok);
+}
+
+[data-iii-ui="rewind"] .rw-wf-bar[data-tone="warn"] > .rw-wf-ending {
+  color: var(--color-warn-strong);
+}
+
+[data-iii-ui="rewind"] .rw-wf-answer {
+  position: absolute;
+  top: 50%;
+  max-width: 48%;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--color-ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  animation: rewind-land var(--motion-duration-panel) var(--motion-ease-enter);
+}
+
+[data-iii-ui="rewind"] .rw-wf-answer[data-error] {
+  color: var(--color-alert-strong);
+}
+
+/* A bar that spans most of the run has its summary under it. */
+[data-iii-ui="rewind"] .rw-wf-row[data-label="below"] {
+  height: 42px;
+}
+
+[data-iii-ui="rewind"] .rw-wf-row[data-label="below"] :is(.rw-wf-ghost, .rw-wf-bar) {
+  top: 13px;
+}
+
+[data-iii-ui="rewind"] .rw-wf-row[data-label="below"] .rw-wf-answer {
+  top: 30px;
+}
+
+[data-iii-ui="rewind"] .rw-wf-answer[data-tone="warn"] {
+  color: var(--color-warn-strong);
+}
+
+/* A call the caller gave up on: the bar ends at the timeout, with a mark there
+   and its label above, and a dashed line runs on to the callee's finish. */
+[data-iii-ui="rewind"] .rw-wf-row[data-gave-up] :is(.rw-wf-ghost, .rw-wf-bar, .rw-wf-after) {
+  top: 31px;
+}
+
+[data-iii-ui="rewind"] .rw-wf-after {
+  height: 0;
+  border-top: 1.5px dashed var(--color-ink-ghost);
+  border-radius: 0;
+}
+
+[data-iii-ui="rewind"] .rw-wf-after[data-lost] {
+  border-top-color: var(--color-alert);
+}
+
+[data-iii-ui="rewind"] .rw-wf-timeout {
+  position: absolute;
+  top: 22px;
+  width: 2px;
+  height: 18px;
+  margin-left: -1px;
+  border-radius: 9999px;
+  background: var(--color-warn);
+}
+
+[data-iii-ui="rewind"] .rw-wf-timeout-label {
+  position: absolute;
+  top: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-warn-strong);
+  white-space: nowrap;
+  animation: rewind-land var(--motion-duration-panel) var(--motion-ease-enter);
+}
+
+[data-iii-ui="rewind"] .rw-wf-pause {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--color-warn);
+  transform: translate(-50%, -50%);
+}
+
+[data-iii-ui="rewind"] .rw-wf-pause > svg {
+  width: 16px;
+  height: 16px;
+  fill: var(--color-warn-muted);
+}
+
+/* Lines across every row, placed on the track column by their share of the run. */
+[data-iii-ui="rewind"] .rw-wf-playhead,
+[data-iii-ui="rewind"] .rw-wf-fork {
+  position: absolute;
+  top: 10px;
+  bottom: 0;
+  width: 1px;
+  pointer-events: none;
+}
+
+[data-iii-ui="rewind"] .rw-wf-playhead {
+  left: calc(var(--rw-wf-name) + (100% - var(--rw-wf-name) - var(--rw-wf-ms)) * var(--rw-ph));
+  background: var(--color-ink);
+}
+
+[data-iii-ui="rewind"] .rw-wf-fork {
+  left: calc(var(--rw-wf-name) + (100% - var(--rw-wf-name) - var(--rw-wf-ms)) * var(--rw-fork));
+  background: var(--color-ink-ghost);
+  opacity: 0.6;
+}
+
+/* The scrubber, in the axis row above the calls. */
+[data-iii-ui="rewind"] .rw-scrub {
+  position: relative;
+  height: 32px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  touch-action: none;
+}
+
+[data-iii-ui="rewind"] .rw-scrub:focus-visible {
+  outline: 2px solid var(--color-rule-focus);
+  outline-offset: 2px;
+}
+
+[data-iii-ui="rewind"] .rw-scrub-rail {
+  position: absolute;
+  top: 20px;
+  right: 0;
+  left: 0;
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--color-surface-selected);
+}
+
+[data-iii-ui="rewind"] .rw-scrub-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 9999px;
+  background: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-scrub-tick {
+  position: absolute;
+  bottom: calc(8px + var(--rw-level, 0) * 6px);
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--rw-tone, var(--color-ink-ghost));
+}
+
+[data-iii-ui="rewind"] .rw-scrub-tick[data-kind="paused"] {
+  background: var(--color-warn);
+}
+
+[data-iii-ui="rewind"] .rw-scrub-fork {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  background: var(--color-panel);
+  box-shadow: inset 0 0 0 1.5px var(--color-ink);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+[data-iii-ui="rewind"] .rw-scrub-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  box-shadow: 0 0 0 2px var(--color-panel);
+  transform: translate(-50%, -50%);
+}
+
+/* The workers on a ring. */
+[data-iii-ui="rewind"] .rw-player-graph {
+  min-width: 0;
+  padding-top: 4px;
+}
+
+[data-iii-ui="rewind"] .rw-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* --rw-shown is how far a worker has joined the ring, from 0 to 1. */
+[data-iii-ui="rewind"] .rw-graph-edge {
+  fill: none;
+  stroke: var(--color-ink-ghost);
+  opacity: calc(var(--rw-shown, 1) * 0.4);
+}
+
+[data-iii-ui="rewind"] .rw-graph-edge[data-state="used"] {
+  opacity: calc(var(--rw-shown, 1) * 0.85);
+}
+
+[data-iii-ui="rewind"] .rw-graph-edge[data-state="active"] {
+  stroke: var(--color-ink-faint);
+  opacity: var(--rw-shown, 1);
+}
+
+[data-iii-ui="rewind"] .rw-graph-edge[data-down] {
+  stroke-dasharray: 3 4;
+  opacity: calc(var(--rw-shown, 1) * 0.35);
+}
+
+[data-iii-ui="rewind"] .rw-graph-pulse {
+  fill: var(--rw-tone, var(--color-ink));
+}
+
+[data-iii-ui="rewind"] .rw-graph-pulse[data-kind="answer"] {
+  fill: var(--color-ink);
+}
+
+[data-iii-ui="rewind"] .rw-graph-pulse[data-kind="error"] {
+  fill: var(--color-alert);
+}
+
+[data-iii-ui="rewind"] .rw-graph-node {
+  opacity: var(--rw-shown, 1);
+  outline: none;
+}
+
+[data-iii-ui="rewind"] .rw-graph-node[data-down] {
+  opacity: calc(var(--rw-shown, 1) * 0.4);
+}
+
+[data-iii-ui="rewind"] .rw-graph-label.rw-graph-stopped {
+  fill: var(--color-alert-strong);
+}
+
+[data-iii-ui="rewind"] .rw-graph-second {
+  opacity: var(--rw-shown, 1);
+}
+
+/* A host a request went to is outside iii, so its node and edge are dashed. */
+[data-iii-ui="rewind"] .rw-graph-node[data-outside] .rw-graph-disc,
+[data-iii-ui="rewind"] .rw-graph-edge[data-outside] {
+  stroke-dasharray: 3 3;
+}
+
+[data-iii-ui="rewind"] .rw-graph-node[data-outside] .rw-graph-disc {
+  stroke: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-graph-node[tabindex="0"] {
+  cursor: pointer;
+}
+
+[data-iii-ui="rewind"] .rw-graph-disc {
+  fill: var(--color-panel-raised);
+  stroke: color-mix(in srgb, var(--rw-tone) 40%, transparent);
+  stroke-width: 1.5;
+}
+
+[data-iii-ui="rewind"] .rw-graph-node[data-busy] .rw-graph-disc {
+  stroke: var(--rw-tone);
+}
+
+[data-iii-ui="rewind"] .rw-graph-node[tabindex="0"]:hover .rw-graph-disc {
+  stroke: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-graph-node:focus-visible .rw-graph-disc {
+  stroke: var(--color-rule-focus);
+  stroke-width: 2;
+}
+
+[data-iii-ui="rewind"] .rw-graph-icon {
+  color: var(--rw-tone);
+}
+
+[data-iii-ui="rewind"] .rw-graph-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  fill: var(--color-ink-faint);
+}
+
+[data-iii-ui="rewind"] .rw-graph-lang {
+  fill: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-graph-hold-track,
+[data-iii-ui="rewind"] .rw-graph-hold-fill {
+  fill: none;
+  stroke: var(--rw-tone);
+  stroke-width: 2;
+}
+
+[data-iii-ui="rewind"] .rw-graph-hold-track {
+  opacity: 0.22;
+}
+
+[data-iii-ui="rewind"] .rw-graph-hold-fill {
+  stroke-linecap: round;
+}
+
+/* The callee still working after its caller gave up. */
+[data-iii-ui="rewind"] .rw-graph-hold[data-kind="after"] .rw-graph-hold-track {
+  stroke: var(--color-ink-ghost);
+  stroke-dasharray: 3 3;
+  opacity: 0.8;
+}
+
+[data-iii-ui="rewind"] .rw-graph-hold[data-kind="after"] .rw-graph-hold-fill {
+  stroke: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-graph-hold[data-kind="paused"] .rw-graph-hold-track {
+  stroke: var(--color-warn);
+  opacity: 1;
+}
+
+/* The worker went away while this call was running. */
+[data-iii-ui="rewind"] .rw-graph-hold[data-kind="broken"] .rw-graph-hold-track {
+  stroke: var(--color-alert);
+  stroke-dasharray: 4 5;
+  opacity: 1;
+}
+
+@container (max-width: 960px) {
+  [data-iii-ui="rewind"] .rw-player-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-iii-ui="rewind"] .rw-player-graph {
+    justify-self: center;
+    width: min(400px, 100%);
+  }
+}
+
+/* ── empty, error and loading states ─────────────────────────────────── */
+
+[data-iii-ui="rewind"] .rw-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 24px;
+}
+
+[data-iii-ui="rewind"] .rw-empty-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(520px, 100%);
+}
+
+[data-iii-ui="rewind"] .rw-empty-state {
+  width: 100%;
+}
+
+[data-iii-ui="rewind"] .rw-empty-command {
+  padding: 6px 8px 6px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+[data-iii-ui="rewind"] .rw-error {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+[data-iii-ui="rewind"] .rw-skeleton-list,
+[data-iii-ui="rewind"] .rw-skeleton-work {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+[data-iii-ui="rewind"] .rw-skeleton-list {
+  gap: 14px;
+}
+
+[data-iii-ui="rewind"] .rw-skeleton-work {
+  gap: 18px;
+}
+
+[data-iii-ui="rewind"] .rw-skel {
+  display: block;
+  height: 10px;
+  border-radius: var(--radius-md);
+}
+
+[data-iii-ui="rewind"] .rw-skel-field {
+  height: 32px;
+}
+
+[data-iii-ui="rewind"] .rw-skel-thin {
+  height: 8px;
+}
+
+[data-iii-ui="rewind"] .rw-skel-row,
+[data-iii-ui="rewind"] .rw-skel-seqrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+[data-iii-ui="rewind"] .rw-skel-row {
+  height: 44px;
+}
+
+[data-iii-ui="rewind"] .rw-skel-seqrow {
+  height: 52px;
+}
+
+[data-iii-ui="rewind"] .rw-skel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+[data-iii-ui="rewind"] .rw-skel-num {
+  width: 20px;
+}
+
+[data-iii-ui="rewind"] .rw-skel-lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+}
+
+[data-iii-ui="rewind"] .rw-skel-mast {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+[data-iii-ui="rewind"] .rw-skel-title {
+  width: 46%;
+  height: 16px;
+}
+
+[data-iii-ui="rewind"] .rw-skel-bar {
+  height: 32px;
+}
+
+[data-iii-ui="rewind"] .rw-skel-seq {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── narrow panes ────────────────────────────────────────────────────── */
+
+@container (max-width: 600px) {
+  [data-iii-ui="rewind"] .rw-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-iii-ui="rewind"] .rw-field-label {
+    min-height: 0;
+  }
+
+  [data-iii-ui="rewind"] .rw-mast {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px 16px 8px;
+  }
+
+  [data-iii-ui="rewind"] .rw-mast-title {
+    white-space: normal;
+  }
+
+  [data-iii-ui="rewind"] .rw-run-notes,
+  [data-iii-ui="rewind"] .rw-switcher,
+  [data-iii-ui="rewind"] .rw-path-line {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  [data-iii-ui="rewind"] .rw-seq-gutter {
+    padding-left: 2px;
+  }
+
+  [data-iii-ui="rewind"] .rw-landing,
+  [data-iii-ui="rewind"] .rw-level,
+  [data-iii-ui="rewind"] .rw-skeleton-list,
+  [data-iii-ui="rewind"] .rw-skeleton-work {
+    padding: 20px 16px 40px;
+  }
+
+  [data-iii-ui="rewind"] .rw-recency,
+  [data-iii-ui="rewind"] .rw-landing-count {
+    min-width: 0;
+  }
+
+  [data-iii-ui="rewind"] .rw-seq {
+    --rw-gutter: 28px;
+    padding: 4px 4px 32px;
+  }
+
+  [data-iii-ui="rewind"] .rw-seq-expand {
+    padding: 0 12px 16px;
+  }
+
+  [data-iii-ui="rewind"] .rw-seq-worker,
+  [data-iii-ui="rewind"] .rw-seq-duration,
+  [data-iii-ui="rewind"] .rw-live {
+    display: none;
+  }
+
+  [data-iii-ui="rewind"] .rw-compare {
+    padding: 12px 12px 40px;
+  }
+
+  [data-iii-ui="rewind"] .rw-line {
+    grid-template-columns: 112px var(--rw-track) minmax(96px, 1fr);
+  }
+
+  [data-iii-ui="rewind"] .rw-line-meta {
+    display: none;
+  }
+
+  [data-iii-ui="rewind"] .rw-decision-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-iii-ui="rewind"] .rw-decision-head .rw-chips {
+    justify-content: flex-start;
+  }
+
+  [data-iii-ui="rewind"] .rw-recovery {
+    padding: 8px 16px 40px;
+  }
+
+  [data-iii-ui="rewind"] .rw-step .rw-decision,
+  [data-iii-ui="rewind"] .rw-group {
+    padding: 12px;
+  }
+
+  [data-iii-ui="rewind"] .rw-call-rows {
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+  }
+
+  [data-iii-ui="rewind"] .rw-call-row > .rw-call-summary {
+    grid-column: 2 / 4;
+    margin-top: 0;
+  }
+
+  [data-iii-ui="rewind"] .rw-player {
+    --rw-wf-name: 136px;
+    --rw-wf-ms: 52px;
+    padding: 4px 12px 40px;
+  }
+
+  [data-iii-ui="rewind"] .rw-player-where,
+  [data-iii-ui="rewind"] .rw-player-total,
+  [data-iii-ui="rewind"] .rw-player-estimated-text,
+  [data-iii-ui="rewind"] .rw-wf-num {
+    display: none;
+  }
+}

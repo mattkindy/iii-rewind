@@ -1,0 +1,91 @@
+diff --git a/workers/agent/src/worker.ts b/workers/agent/src/worker.ts
+--- a/workers/agent/src/worker.ts
++++ b/workers/agent/src/worker.ts
+@@ -7,8 +7,8 @@
+  * recording, so the handler never reads the clock, draws a random number, or
+  * puts a namespace on a call. It acts only on what its calls return.
+  *
+- * Bugs 1 and 3 in BUGS.md live here: string tool arguments go through
+- * JSON.parse unguarded, and email::send is retried on TIMEOUT.
++ * Bug 3 in BUGS.md lives here: email::send is retried on TIMEOUT. When the
++ * model's tool arguments don't parse (bug 1), the agent asks it once more.
+  *
+  * Run: III_URL=ws://127.0.0.1:49334 node --import tsx --import ../rewind/preload/node/index.mjs src/worker.ts
+  */
+@@ -59,10 +59,14 @@ async function call<T>(functionId: string, payload: unknown, policy: CallPolicy
+   }
+ }
+ 
+-// A cut-off string throws SyntaxError here and takes the whole run down (bug 1).
+-function parseArgs(args: ToolCall['args']): Record<string, unknown> {
++/** The arguments, or the SyntaxError from a string that was cut off partway through. */
++function parseArgs(args: ToolCall['args']): Record<string, unknown> | SyntaxError {
+   if (typeof args === 'string') {
+-    return JSON.parse(args)
++    try {
++      return JSON.parse(args)
++    } catch (error) {
++      return error as SyntaxError
++    }
+   }
+ 
+   return args
+@@ -90,20 +94,30 @@ async function blocked(name: string, args: Record<string, unknown>): Promise<str
+ }
+ 
+ /** The tool's output, or `{ error }` with the message the SDK gave, which the model reads on its next turn. */
+-async function runTool(toolCall: ToolCall): Promise<unknown> {
+-  const args = parseArgs(toolCall.args)
++async function runTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+   try {
+-    const reason = await blocked(toolCall.name, args)
++    const reason = await blocked(name, args)
+     if (reason) {
+       return { error: reason }
+     }
+ 
+-    return await call(toolCall.name, args, TOOL_POLICY[toolCall.name])
++    return await call(name, args, TOOL_POLICY[name])
+   } catch (error) {
+     return { error: error instanceof Error ? error.message : String(error) }
+   }
+ }
+ 
++// Asking the same question again usually gets arguments that parse, because a
++// reply cut off at its token limit rarely happens twice in a row.
++async function askModel(input: ReturnType<typeof modelInput>): Promise<ModelAnswer> {
++  const answer = await call<ModelAnswer>('model::complete', input)
++  if ('tool_call' in answer && parseArgs(answer.tool_call.args) instanceof SyntaxError) {
++    return call<ModelAnswer>('model::complete', input)
++  }
++
++  return answer
++}
++
+ function modelInput(turn: number, today: string, messages: Message[]) {
+   if (turn === 1) {
+     return { turn, today, tools: TOOLS, messages: [...messages] }
+@@ -119,13 +133,20 @@ async function run(input: RunInput): Promise<RunOutput> {
+   const messages: Message[] = [{ role: 'user', content: input.request }]
+ 
+   for (let turn = 1; turn <= MAX_TURNS; turn++) {
+-    const answer = await call<ModelAnswer>('model::complete', modelInput(turn, today, messages))
++    const answer = await askModel(modelInput(turn, today, messages))
+     if ('text' in answer) {
+       return { status: answer.status, reply: answer.text, turns: turn }
+     }
+ 
+-    const result = await runTool(answer.tool_call)
+-    messages.push({ role: 'tool', name: answer.tool_call.name, result })
++    const { name } = answer.tool_call
++    const args = parseArgs(answer.tool_call.args)
++    if (args instanceof SyntaxError) {
++      const reply = `I couldn't book it, because the model sent arguments for ${name} that were not valid JSON twice (${args.message}).`
++      return { status: 'failed', reply, turns: turn }
++    }
++
++    const result = await runTool(name, args)
++    messages.push({ role: 'tool', name, result })
+   }
+ 
+   return { status: 'failed', reply: `I gave up after ${MAX_TURNS} turns.`, turns: MAX_TURNS }

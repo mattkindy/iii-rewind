@@ -1,0 +1,69 @@
+# One command starts everything: iii compose --up
+# The engine listens on 49334 so this project can run beside the default harness on 49134.
+# Compose only runs scripts.start from each worker's manifest, so installs happen in pre_run.
+startup_timeout: 300s
+stop_timeout: 10s
+
+engine:
+  url: ws://127.0.0.1:49334
+
+containers:
+  # The clock starts first and checks the machine before anything installs. It's required, so a
+  # missing tool stops the whole project with the doctor's message instead of a build error later.
+  clock:
+    worker: path://./workers/clock
+    required: true
+    scripts:
+      pre_run: node ../../scripts/doctor.mjs && npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  model:
+    worker: path://./workers/model
+    start_after: [clock]
+    environment:
+      MODEL_SEED: "${MODEL_SEED:-412}"
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  # The failure demo kills this worker mid-call; compose brings it back.
+  tools:
+    worker: path://./workers/tools
+    start_after: [clock]
+    restart: always
+    scripts:
+      pre_run: uv venv --allow-existing --python 3.11 .venv && uv pip install --python .venv/bin/python -r requirements.txt
+      pre_run_timeout: 3m
+
+  agent:
+    worker: path://./workers/agent
+    start_after: [clock, model, tools]
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  # Also installs the scripts folder, so `npm run kill-tools` and `npm run check` work at once.
+  traffic:
+    worker: path://./workers/traffic
+    start_after: [agent]
+    scripts:
+      pre_run: npm install --no-audit --no-fund && npm --prefix ../../scripts install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  # Rewind starts copies of the agent from workers/agent, so the agent's install has to finish first.
+  # It serves its ADE page from ui/dist, which the first half of pre_run builds.
+  rewind:
+    worker: path://./workers/rewind
+    start_after: [agent]
+    restart: always
+    scripts:
+      pre_run: (cd ui && npm install --no-audit --no-fund && npm run build) && cargo build --release
+      pre_run_timeout: 10m
+
+  # The ADE at http://127.0.0.1:3133. Its /ws proxy has no auth, so it stays on localhost.
+  ade:
+    worker: package://ade
+    version: "latest"
+    config_override:
+      http_host: 127.0.0.1
+      http_port: 3133

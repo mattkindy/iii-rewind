@@ -1,0 +1,12 @@
+iii: v1
+name: tools
+language: python
+description: The scheduling agent's calendar and email tools (calendar::find-slot, email::send).
+
+runtime:
+  kind: python
+
+scripts:
+  install: uv venv --python 3.11 .venv && uv pip install --python .venv/bin/python -r requirements.txt
+  # Rewind's sitecustomize records the email POST, which goes around iii.
+  start: env PYTHONPATH=../rewind/preload/python .venv/bin/python src/main.py

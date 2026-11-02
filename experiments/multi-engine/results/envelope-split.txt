@@ -1,0 +1,43 @@
+Envelopes on split, 2026-10-31T15:53:05.009Z
+1. The tools in each engine's function list
+  A: calendar::find-slot worker=bridge metadata=null description="Forward to remote function calendar::find-slot"
+  A: email::send worker=bridge metadata=null description="Forward to remote function email::send"
+  A: probe::echo worker=bridge metadata=null description="Forward to remote function probe::echo"
+  B: calendar::find-slot worker=tools metadata={"effects":["read-only"]} description="Finds an afternoon slot for an attendee on a given day"
+  B: email::send worker=tools metadata={"effects":["irreversible"]} description="Sends a meeting invite through the email provider, which appends it to data/outbox.jsonl"
+  B: probe::echo worker=probe metadata=null description="Returns its input at once, for timing a call"
+  Rewind A: {"effects":[],"function_id":"calendar::find-slot","recording":false,"worker":"bridge"}
+  Rewind A: {"effects":[],"function_id":"email::send","recording":false,"worker":"bridge"}
+  Rewind A: {"effects":[],"function_id":"probe::echo","recording":false,"worker":"bridge"}
+  Rewind A records: agent::run, clock::now, model::complete, traffic::burst
+2. Agent runs, until each engine has seen a slot lookup and a send
+  agent::run "Book 30 minutes with Dana next Tuesday afternoon" -> {"reply":"Booked Tuesday 3 Nov at 3:30 pm with Dana and sent the invite.","status":"booked","turns":3}
+  A saw {"activation_id":"950c59ea-9300-4a3d-86b2-dd8aad83228f","caller":{"function_id":"agent::run","invocation_id":"f1654ff9-eb8a-4123-ab0a-301a3a43725d","parent":{"worker_id":"c33010ee-fc8b-486f-9e41-89b49b9dca2e","worker_name":"envelope-probe"},"worker_id":"43086682-e77c-4cc1-9e02-de7f45ebaf3f","worker_name":"agent"},"duration_ms":714.032583,"function_id":"calendar::find-slot","input":{"attendee":"dana@example.com","day":"2026-11-03","duration":30},"invocation_id":"6c23e105-f7da-45b5-9ba3-db195680c48e","namespace":"default","observer_id":"fbfa1177-8291-4b1a-a37b-64a97b38b0a1","output":{"attendee":"dana@example.com","end":"2026-11-03T16:00:00-06:00","start":"2026-11-03T15:30:00-06:00"},"started_at_ms":1793461986837,"status":"success"}
+  A saw {"activation_id":"21ded6fe-2647-4da0-b24f-dae33281e175","caller":{"function_id":"agent::run","invocation_id":"f1654ff9-eb8a-4123-ab0a-301a3a43725d","parent":{"worker_id":"c33010ee-fc8b-486f-9e41-89b49b9dca2e","worker_name":"envelope-probe"},"worker_id":"43086682-e77c-4cc1-9e02-de7f45ebaf3f","worker_name":"agent"},"duration_ms":177.6175,"function_id":"email::send","input":{"start":"2026-11-03T15:30:00-06:00","subject":"30 minutes, Tuesday","to":"dana@example.com"},"invocation_id":"3b749fe3-98a3-49a2-a57b-0ea84581aa6d","namespace":"default","observer_id":"d46d2cf4-65a0-44d1-87b9-41abd0fa2984","output":{"id":"msg_925384431382","status":"accepted"},"started_at_ms":1793461988011,"status":"success"}
+  B saw {"activation_id":"93b60cc7-e282-4bad-98ea-db8c2db75396","caller":{"worker_id":"7a015a84-55ee-4818-bfe1-2fb660ad0c4d","worker_name":"bridge"},"duration_ms":713.47525,"function_id":"calendar::find-slot","input":{"attendee":"dana@example.com","day":"2026-11-03","duration":30},"invocation_id":"2bbc2c8c-e7f8-4938-af1e-58e29d83d3e4","namespace":"default","observer_id":"ead4cf89-7f91-4252-b80d-c772e31f08dd","output":{"attendee":"dana@example.com","end":"2026-11-03T16:00:00-06:00","start":"2026-11-03T15:30:00-06:00"},"started_at_ms":1793461986837,"status":"success"}
+  B saw {"activation_id":"aa007b65-c528-4636-ba71-0871fd248594","caller":{"worker_id":"7a015a84-55ee-4818-bfe1-2fb660ad0c4d","worker_name":"bridge"},"duration_ms":177.05475,"function_id":"email::send","input":{"start":"2026-11-03T15:30:00-06:00","subject":"30 minutes, Tuesday","to":"dana@example.com"},"invocation_id":"04056bdf-533a-4bee-9bb1-3e68358d0e6a","namespace":"default","observer_id":"2ddcbaf6-af34-4902-8f5e-754b4ad37773","output":{"id":"msg_925384431382","status":"accepted"},"started_at_ms":1793461988011,"status":"success"}
+3. calendar::find-slot called directly with a string duration (bug 2)
+  the caller on ws://127.0.0.1:50034 got {"caught":{"code":"bridge_error","message":"bridge_error: remote error (invocation_failed): unsupported type for timedelta minutes component: str"}}
+  A saw {"activation_id":"483a839f-462e-407e-9633-7a3f154613f3","caller":{"worker_id":"c33010ee-fc8b-486f-9e41-89b49b9dca2e","worker_name":"envelope-probe"},"duration_ms":851.390083,"error":{"code":"bridge_error","message":"remote error (invocation_failed): unsupported type for timedelta minutes component: str"},"function_id":"calendar::find-slot","input":{"attendee":"bug2-split-1793461989079@example.com","day":"2026-11-10","duration":"30"},"invocation_id":"6a255708-1217-43d6-9b20-7fb8faa1db9a","namespace":"default","observer_id":"fbfa1177-8291-4b1a-a37b-64a97b38b0a1","started_at_ms":1793461989079,"status":"error"}
+  B saw {"activation_id":"064d36aa-c527-413f-82a2-b1ed07b67710","caller":{"worker_id":"7a015a84-55ee-4818-bfe1-2fb660ad0c4d","worker_name":"bridge"},"duration_ms":850.6605000000001,"error":{"code":"invocation_failed","message":"unsupported type for timedelta minutes component: str","stacktrace":"... iii.iii._TraceContextError: 00-ab1f10129f5007ef1f92f5e8a08d019b-9299e8e6052f59e2-01"},"function_id":"calendar::find-slot","input":{"attendee":"bug2-split-1793461989079@example.com","day":"2026-11-10","duration":"30"},"invocation_id":"3575a782-f5a2-48b2-a7d9-e513ccfc637e","namespace":"default","observer_id":"ead4cf89-7f91-4252-b80d-c772e31f08dd","started_at_ms":1793461989080,"status":"error"}
+4. Rewind A before and after turning recording on for the bridged tools
+  Rewind A: {"effects":[],"function_id":"calendar::find-slot","recording":false,"worker":"bridge"}
+  Rewind A: {"effects":[],"function_id":"email::send","recording":false,"worker":"bridge"}
+  Rewind A: {"effects":[],"function_id":"probe::echo","recording":false,"worker":"bridge"}
+  Rewind A records: agent::run, clock::now, model::complete, traffic::burst
+  Rewind A: {"effects":[],"function_id":"calendar::find-slot","recording":true,"worker":"bridge"}
+  Rewind A: {"effects":[],"function_id":"email::send","recording":true,"worker":"bridge"}
+  Rewind A: {"effects":[],"function_id":"probe::echo","recording":false,"worker":"bridge"}
+  Rewind A records: agent::run, calendar::find-slot, clock::now, email::send, model::complete, traffic::burst
+  Rewind B: {"effects":["read-only"],"function_id":"calendar::find-slot","recording":true,"worker":"tools"}
+  Rewind B: {"effects":["irreversible"],"function_id":"email::send","recording":true,"worker":"tools"}
+  Rewind B: {"effects":[],"function_id":"probe::echo","recording":false,"worker":"probe"}
+  Rewind B records: calendar::find-slot, email::send
+5. One more agent run, recorded on both engines
+  agent::run "Book 30 minutes with Dana next Tuesday afternoon" -> {"reply":"Booked Tuesday 3 Nov at 3:30 pm with Dana and sent the invite.","status":"booked","turns":3}
+  Rewind A row: calendar::find-slot inv=87d094a7-e216-4183-b09c-1c7ae3400e24 caller_worker=agent caller_function=agent::run caller_inv=fe219d41-88ac-4cfc-9951-564fd5e9af8d trace=88a1121821a335e135aac93937f05247 start=1793461991841 dur=762.9
+  Rewind A row: email::send inv=2e9f46bd-7bae-4d1a-89d3-d01807acd3bc caller_worker=agent caller_function=agent::run caller_inv=fe219d41-88ac-4cfc-9951-564fd5e9af8d trace=88a1121821a335e135aac93937f05247 start=1793461993289 dur=327.5
+  Rewind B row: calendar::find-slot inv=b302217a-1370-4ad4-8e9c-53510c3f4045 caller_worker=bridge caller_function=null caller_inv=null trace=88a1121821a335e135aac93937f05247 start=1793461991841 dur=762.2
+  Rewind B row: email::send inv=d0291f07-fef1-4996-a261-49cec77630db caller_worker=bridge caller_function=null caller_inv=null trace=88a1121821a335e135aac93937f05247 start=1793461993290 dur=326.9
+  B calendar::find-slot b302217a-1370-4ad4-8e9c-53510c3f4045: by invocation id no match, by trace id 87d094a7-e216-4183-b09c-1c7ae3400e24, by input and start within 50 ms 87d094a7-e216-4183-b09c-1c7ae3400e24
+  B email::send d0291f07-fef1-4996-a261-49cec77630db: by invocation id no match, by trace id 87d094a7-e216-4183-b09c-1c7ae3400e24, by input and start within 50 ms 2e9f46bd-7bae-4d1a-89d3-d01807acd3bc

@@ -1,0 +1,13 @@
+iii: v1
+name: agent
+language: typescript
+description: The scheduling agent, which books a meeting from a plain English request (agent::run).
+
+runtime:
+  kind: node
+
+# The start command runs one node process, so a signal sent to it reaches the worker itself.
+# Rewind's preload records the agent's fetch calls, which go around iii.
+scripts:
+  install: npm install --no-audit --no-fund
+  start: node --import tsx --import ../rewind/preload/node/index.mjs src/worker.ts

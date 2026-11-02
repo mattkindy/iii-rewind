@@ -1,0 +1,10 @@
+Traces on single, 2026-10-31T15:41:18.851Z
+run 7c0b1a2a-4d76-44ac-b013-e57f6e4b8c17, trace 6bec2ad975ae05a296fd5d117ab92533, 7 calls recorded by Rewind A
+  seq 0 clock::now trace=6bec2ad975ae05a296fd5d117ab92533 span=4c9a04711ea9576a
+  seq 1 model::complete trace=6bec2ad975ae05a296fd5d117ab92533 span=904ceef2004105db
+  seq 2 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-02&weeks=2 trace=6bec2ad975ae05a296fd5d117ab92533 span=893774364b37d246
+  seq 3 calendar::find-slot trace=6bec2ad975ae05a296fd5d117ab92533 span=4d0e3d7c3a5ca3b7
+  seq 4 model::complete trace=6bec2ad975ae05a296fd5d117ab92533 span=4df6eeaac8563d91
+  seq 5 email::send trace=6bec2ad975ae05a296fd5d117ab92533 span=f344d902f1c25e19
+  seq 6 model::complete trace=6bec2ad975ae05a296fd5d117ab92533 span=c3f51e8c69c00ec4
+engine A has 20 spans in trace 6bec2ad975ae05a296fd5d117ab92533: 1 x iii-node: execute traffic::burst; 1 x iii-node: execute agent::run; 1 x iii-node: execute clock::now; 3 x iii-node: execute model::complete; 7 x rewind: execute rewind::record; 2 x iii-node: parseArgs; 1 x iii-node: GET /holidays; 1 x iii-python-sdk: execute calendar::find-slot; 1 x iii-python-sdk: find_slot; 1 x iii-python-sdk: execute email::send; 1 x iii-python-sdk: POST /email

@@ -1,0 +1,14 @@
+[compose:default] bridge exited unexpectedly (signal: 9 (SIGKILL))
+[compose:default] restarting bridge (attempt 1 of 5)
+[compose:default] bridge exited unexpectedly (signal: 9 (SIGKILL))
+[compose:default] restarting bridge (attempt 2 of 5)
+[compose:default] bridge exited unexpectedly (signal: 9 (SIGKILL))
+[compose:default] restarting bridge (attempt 3 of 5)
+[compose:default] bridge exited unexpectedly (signal: 9 (SIGKILL))
+[compose:default] restarting bridge (attempt 4 of 5)
+[compose:default] bridge exited unexpectedly (signal: 9 (SIGKILL))
+[compose:default] restarting bridge (attempt 5 of 5)
+[compose:default] bridge exited unexpectedly (signal: 9 (SIGKILL))
+[compose:default] bridge did not stay up after 5 restart attempts: giving up
+[compose:default] stopping what depended on bridge: rewind, traffic, agent
+down: 4 of 4 changed in 9.0s

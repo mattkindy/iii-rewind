@@ -1,0 +1,38 @@
+# Engine B of the two-engine experiment, at 50134: the Python tools, the probe worker, and a
+# second Rewind that records them. Engine A reaches these functions through its bridge worker.
+# Start both engines with `npx tsx start.ts` from experiments/multi-engine.
+startup_timeout: 300s
+stop_timeout: 10s
+
+engine:
+  url: ws://127.0.0.1:50134
+
+containers:
+  # Compose gives up after 5 restarts unless the worker stays up for 60 s, and the experiment
+  # kills this worker more often than that.
+  tools:
+    worker: path://../../../workers/tools
+    restart:
+      condition: always
+      max_attempts: 100
+    environment:
+      EMAIL_URL: http://127.0.0.1:50036/email
+    scripts:
+      pre_run: uv venv --allow-existing --python 3.11 .venv && uv pip install --python .venv/bin/python -r requirements.txt
+      pre_run_timeout: 3m
+
+  probe:
+    worker: path://../probe
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  # There is no agent on this engine, so this Rewind records calls and never starts a copy.
+  rewind:
+    worker: path://../../../workers/rewind
+    start_after: [tools]
+    environment:
+      HOLIDAYS_URL: http://127.0.0.1:50036
+    scripts:
+      pre_run: cargo build --release
+      pre_run_timeout: 10m

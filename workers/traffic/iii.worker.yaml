@@ -1,0 +1,12 @@
+iii: v1
+name: traffic
+language: typescript
+description: Sends bursts of booking requests to the scheduling agent and counts the outcomes (traffic::burst).
+
+runtime:
+  kind: node
+
+# The start command runs one node process, so a signal sent to it reaches the worker itself.
+scripts:
+  install: npm install --no-audit --no-fund
+  start: node --import tsx src/worker.ts

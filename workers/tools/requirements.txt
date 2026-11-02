@@ -1,0 +1,3 @@
+iii-sdk==0.25.0
+# zoneinfo reads the system time zone database, and slim images often leave it out.
+tzdata==2026.5

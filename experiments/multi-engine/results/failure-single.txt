@@ -1,0 +1,26 @@
+Failure across the boundary on single, 2026-10-31T15:45:22.677Z
+Kill tools (single)
+  direct calendar::find-slot from engine A, tools killed 200 ms in
+    round 1: caller got {"error":{"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}} 2.3 ms after the kill (244 ms after it sent)
+      a call made right after got {"error":{"code":"function_not_found","message":"function_not_found: Function calendar::find-slot not found in namespace default."}}
+      calls through engine A worked again 1200 ms after the kill
+    round 2: caller got {"error":{"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}} 1.7 ms after the kill (222 ms after it sent)
+      a call made right after got {"error":{"code":"function_not_found","message":"function_not_found: Function calendar::find-slot not found in namespace default."}}
+      calls through engine A worked again 1251 ms after the kill
+    round 3: caller got {"error":{"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}} 1.7 ms after the kill (220 ms after it sent)
+      a call made right after got {"error":{"code":"function_not_found","message":"function_not_found: Function calendar::find-slot not found in namespace default."}}
+      calls through engine A worked again 1004 ms after the kill
+  email::send killed 100 ms in: caller got {"error":{"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}} 2.1 ms after the kill
+    outbox lines with this subject 4 s later: 1 ({"id":"msg_3b510ea57750","to":"probe@example.com","subject":"multi-engine kill tools 1793461530325","start":"2026-11-10T14:00:00-06:00","sent_at":"2026-10-31T15:45:30.731Z","took_ms":401,"caller_invocation_id":null})
+    completions the tools' engine reported for it: none
+  burst of 16 runs, tools killed 1.5 s in: {"booked":7,"errors":0,"failed":9,"sent":16}
+    rewind::lost lists 8 new run(s)
+      decf6e5e-c46b-4d86-9583-3fe3c35d2d09 lost at seq 3: I couldn't book it, because calendar::find-slot failed: function_not_found: Function calendar::find-slot not found in namespace default.
+      7012b6fe-a281-4699-ab18-4f52784d418b lost at seq 3: I couldn't book it, because calendar::find-slot failed: function_not_found: Function calendar::find-slot not found in namespace default.
+      f42873a5-43ce-484f-a2f8-a67460b6656a lost at seq 3: I couldn't book it, because calendar::find-slot failed: function_not_found: Function calendar::find-slot not found in namespace default.
+      04e74a69-7fe8-486a-9a52-87b3a7d94f59 lost at seq 3: I couldn't book it, because calendar::find-slot failed: invocation_stopped: Invocation stopped
+    worker changes Rewind A has around the kill: disconnected tools, connected tools
+    rewind::recover decf6e5e-c46b-4d86-9583-3fe3c35d2d09 -> f5 (recover): paused at seq 5 email::send, effects ["irreversible"], choices live, typed, inject, stop
+      seq 5 email::send answered typed: {"value":{"id":"msg_multi_engine","status":"accepted"}}; now done {"reply":"Booked Friday 6 Nov at 2:00 pm with Lena and sent the invite.","status":"booked","turns":3}
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-06&weeks=2=recorded 3:calendar::find-slot=live 4:model::complete=live 5:email::send=typed 6:model::complete=live
+    the tools' engine ran 1 call(s) during the recovery: calendar::find-slot success; outbox 43 -> 43

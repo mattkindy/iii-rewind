@@ -1,0 +1,19 @@
+Traces on split, 2026-10-31T15:50:06.568Z
+run 536e2eb5-a246-4568-993e-d117972a1f97, trace eb49c8b3689f068aedaa22dc16131726, 5 calls recorded by Rewind A
+  seq 0 clock::now trace=eb49c8b3689f068aedaa22dc16131726 span=82858fe04435f4c6
+  seq 1 model::complete trace=eb49c8b3689f068aedaa22dc16131726 span=31ecffd19e7d0b84
+  seq 2 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-02&weeks=2 trace=eb49c8b3689f068aedaa22dc16131726 span=f8c1bae8b0d42dd8
+  seq 3 model::complete trace=eb49c8b3689f068aedaa22dc16131726 span=3bb49728edbbe690
+  seq 4 model::complete trace=eb49c8b3689f068aedaa22dc16131726 span=56d31b01ad93262d
+engine A has 16 spans in trace eb49c8b3689f068aedaa22dc16131726: 1 x iii-node: execute traffic::burst; 1 x iii-node: execute agent::run; 3 x iii-node: execute model::complete; 1 x iii-node: execute clock::now; 5 x rewind: execute rewind::record; 2 x iii-node: parseArgs; 1 x iii-node: GET /holidays; 1 x bridge: execute calendar::find-slot; 1 x bridge: execute email::send
+engine B has 6 spans in trace eb49c8b3689f068aedaa22dc16131726: 1 x iii-python-sdk: execute calendar::find-slot; 1 x iii-python-sdk: find_slot; 2 x rewind: execute rewind::record; 1 x iii-python-sdk: execute email::send; 1 x iii-python-sdk: POST /email
+  B span iii-python-sdk: execute calendar::find-slot, parent on A bridge: execute calendar::find-slot
+  B span iii-python-sdk: find_slot, parent on B iii-python-sdk: execute calendar::find-slot
+  B span rewind: execute rewind::record, parent on A bridge: execute calendar::find-slot
+  B span iii-python-sdk: execute email::send, parent on A bridge: execute email::send
+  B span iii-python-sdk: POST /email, parent on B iii-python-sdk: execute email::send
+  B span rewind: execute rewind::record, parent on A bridge: execute email::send
+engine B stored 2 tool spans during the run, in 1 trace(s): eb49c8b3689f068aedaa22dc16131726
+  B trace eb49c8b3689f068aedaa22dc16131726: 1 x iii-python-sdk: execute calendar::find-slot; 1 x iii-python-sdk: find_slot; 2 x rewind: execute rewind::record; 1 x iii-python-sdk: execute email::send; 1 x iii-python-sdk: POST /email
+    its root iii-python-sdk: execute calendar::find-slot has parent f5e629623e487e6d, which is A's span bridge: execute calendar::find-slot
+    engine A has 16 spans in this trace

@@ -1,0 +1,11 @@
+Latency on single, engine ws://127.0.0.1:50034, 2026-10-31T15:36:46.908Z
+probe::echo round trip (single)              n=200 mean     0.22  p50     0.22  p90     0.29  p99     0.42  min     0.14  max     0.73  (ms)
+  failures: 0
+calendar::find-slot round trip (single)      n= 40 mean   683.74  p50   650.95  p90   895.80  p99   901.06  min   423.45  max   901.06  (ms)
+  failures: 0
+  inside the tool, from the tools' Rewind    n= 40 mean   683.05  p50   649.89  p90   895.05  p99   900.56  min   422.78  max   900.56  (ms)
+  round trip minus time inside the tool      n= 40 mean     0.69  p50     0.67  p90     1.06  p99     1.32  min     0.34  max     1.32  (ms)
+traffic::burst {"count":30,"interval_ms":150} took 8.3 s: {"booked":26,"errors":1,"failed":3,"sent":30}
+  Rewind recorded 30 runs: 26 success booked, 3 success failed, 1 error: Unterminated string in JSON at position 
+  agent::run duration                        n= 30 mean  2811.19  p50  2774.02  p90  3242.74  p99  5239.11  min   466.59  max  5239.11  (ms)
+  calls Rewind recorded per run (count, not ms) n= 30 mean     6.73  p50     7.00  p90     7.00  p99     8.00  min     2.00  max     8.00  (ms)

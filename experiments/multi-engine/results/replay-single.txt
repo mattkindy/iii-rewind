@@ -1,0 +1,29 @@
+Replay and forks on single, 2026-10-31T15:43:58.122Z
+1. Replay
+  a run with its tool calls recorded: run 7c0b1a2a-4d76-44ac-b013-e57f6e4b8c17 (7 recorded calls: clock::now, model::complete, fetch GET http://127.0.0.1:50036/holidays?from=2026-11-02&weeks=2, calendar::find-slot, model::complete, email::send, model::complete)
+    replayed as f1 in rewind-f1: done {"reply":"Booked Monday 2 Nov at 1:30 pm with Dana and sent the invite.","status":"booked","turns":3}
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-02&weeks=2=recorded 3:calendar::find-slot=recorded 4:model::complete=recorded 5:email::send=recorded 6:model::complete=recorded
+    outbox 34 -> 34 lines, tools' Rewind 109 -> 109 tool rows, observer on the tools' engine saw 0 call(s)
+2. Fork onto another day, so find-slot gets an input the recording lacks
+  forking 7c0b1a2a-4d76-44ac-b013-e57f6e4b8c17 at seq 1: find-slot for 2026-11-09 instead of 2026-11-02
+    f2: paused at seq 2 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-09&weeks=2, effects ["read-only"], choices live, typed, inject, stop, input {"body":null,"headers":{"accept":"*/*","accept-encoding":"gzip, deflate","accept-language":"*","sec-fetch-mode":"cors","user-agent":"node"},"method":"GET","url":"http://127.0.0.1:50036/holidays?from=2026-11-09&weeks=2"}
+    seq 2 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-09&weeks=2 (effects ["read-only"], choices live, typed, inject, stop), answering live
+    seq 3 find-slot answered live: {"value":{"attendee":"dana@example.com","end":"2026-11-09T14:15:00-06:00","start":"2026-11-09T14:00:00-06:00"}}, source live
+      outbox 34 -> 34 lines, tools' Rewind 109 -> 109 tool rows, observer on the tools' engine saw 1 call(s); it came from {"worker_id":"124b6874-2882-46f4-9a82-58a7810cbffa","worker_name":"rewind"}
+    seq 4 model::complete (effects ["external"], choices live, typed, inject, stop), answering live
+    seq 5 email::send (effects ["irreversible"], choices typed, inject, stop), answering typed
+    seq 6 model::complete (effects ["external"], choices live, typed, inject, stop), answering live
+    f2 finished: done {"reply":"Booked Monday 9 Nov at 2:00 pm with Dana and sent the invite.","status":"booked","turns":3}
+    calls 0:clock::now=recorded 1:model::complete=edited 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-09&weeks=2=live 3:calendar::find-slot=live 4:model::complete=live 5:email::send=typed 6:model::complete=live
+    over the whole fork: outbox 34 -> 34 lines, tools' Rewind 109 -> 109 tool rows, observer on the tools' engine saw 1 call(s)
+3. Replay without a stub for calendar::find-slot: kill tools first
+  killed tools (pid 82214); calendar::find-slot left engine A's list after 21 ms
+  replay while it is gone: run 7c0b1a2a-4d76-44ac-b013-e57f6e4b8c17 (7 recorded calls: clock::now, model::complete, fetch GET http://127.0.0.1:50036/holidays?from=2026-11-02&weeks=2, calendar::find-slot, model::complete, email::send, model::complete)
+    replayed as f3 in rewind-f3: paused at seq 3 model::complete, effects ["external"], choices live, typed, inject, stop, input {"messages":[{"content":"Book 15 minutes with Dana next Monday afternoon","role":"user"},{"name":"calendar::find-slot","result":{"error":"function_not_found: Function calendar::find-slot not found in namespace rewind-f3. It is registered in namespace(s): default."},"role":"tool"}],"turn":2}
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-02&weeks=2=recorded
+    outbox 34 -> 34 lines, tools' Rewind 109 -> 109 tool rows, observer on the tools' engine saw 0 call(s)
+  calendar::find-slot is back on engine A 2078 ms after the kill
+  replay once it is back: run 7c0b1a2a-4d76-44ac-b013-e57f6e4b8c17 (7 recorded calls: clock::now, model::complete, fetch GET http://127.0.0.1:50036/holidays?from=2026-11-02&weeks=2, calendar::find-slot, model::complete, email::send, model::complete)
+    replayed as f4 in rewind-f4: done {"reply":"Booked Monday 2 Nov at 1:30 pm with Dana and sent the invite.","status":"booked","turns":3}
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-02&weeks=2=recorded 3:calendar::find-slot=recorded 4:model::complete=recorded 5:email::send=recorded 6:model::complete=recorded
+    outbox 34 -> 34 lines, tools' Rewind 109 -> 109 tool rows, observer on the tools' engine saw 0 call(s)

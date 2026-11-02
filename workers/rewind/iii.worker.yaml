@@ -1,0 +1,14 @@
+iii: v1
+name: rewind
+language: rust
+description: Records calls between functions, replays a recorded run against the worker's own code, forks it, and recovers runs a dead worker stopped (rewind::*).
+
+runtime:
+  kind: rust
+
+# Compose only runs scripts.start, so a compose file builds Rewind in pre_run.
+# Copies of the worker under test are child processes of this one binary, and
+# they stop when it does.
+scripts:
+  install: cargo build --release
+  start: ./target/release/rewind

@@ -1,0 +1,12 @@
+iii: v1
+name: model
+language: typescript
+description: A fake language model for the scheduling agent, seeded from MODEL_SEED (model::complete).
+
+runtime:
+  kind: node
+
+# The start command runs one node process, so a signal sent to it reaches the worker itself.
+scripts:
+  install: npm install --no-audit --no-fund
+  start: node --import tsx src/worker.ts

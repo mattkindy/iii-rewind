@@ -1,0 +1,196 @@
+Rewind e2e against ws://127.0.0.1:50034, outbox experiments/multi-engine/engine-a/data/outbox.jsonl
+  recording agent::run, clock::now, model::complete, traffic::burst
+  code under test {"changed_at_ms":1793461721477,"version":"ec6017cba856"}
+1. Record a burst of runs
+  burst 1: {"booked":22,"errors":5,"failed":3,"sent":30}, 30 runs recorded
+  burst 2: {"booked":17,"errors":7,"failed":6,"sent":30}, 30 runs recorded
+  burst 3: {"booked":20,"errors":4,"failed":6,"sent":30}, 30 runs recorded
+  burst 4: {"booked":23,"errors":5,"failed":2,"sent":30}, 30 runs recorded
+  burst 5: {"booked":16,"errors":7,"failed":7,"sent":30}, 30 runs recorded
+  burst 6: {"booked":24,"errors":2,"failed":4,"sent":30}, 30 runs recorded
+2. Replay one run of each kind
+  FAIL a booked run was recorded
+  PASS a SyntaxError run was recorded
+    run e8237071-8d5e-4a8f-b560-cc041cf16ef9 replayed as f1: crashed invocation_failed: Unexpected end of JSON input
+    calls 0:clock::now=recorded 1:model::complete=recorded
+  PASS SyntaxError: the replay ends the way the recording did
+  PASS SyntaxError: every call came from the recording: 2 of 2
+  PASS a TypeError run was recorded
+    run b474712b-0947-4b56-a4aa-486070a03789 replayed as f2: paused at seq 3 calendar::find-slot (choices typed, inject, stop)
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-04&weeks=2=recorded
+  FAIL TypeError: the replay ends the way the recording did
+  FAIL TypeError: every call came from the recording: 3 of 4
+  FAIL a sent twice run was recorded
+3. Find a run by one of its calls' invocation ids
+    run e8237071-8d5e-4a8f-b560-cc041cf16ef9, call bd6f7d71-86bf-4451-b2e5-7bb7b4c3eb6d (model::complete)
+  PASS rewind::runs finds a run by a prefix of one of its calls' invocation ids: q bd6f7d71 matched 1 run(s)
+    parseArgs threw SyntaxError: Unexpected end of JSON input on "{\"attendee\":\"omar@example.com\",\"day\":\"2026-11-05\",\"duration\""
+  PASS bug 1: the run shows parseArgs throwing SyntaxError on the cut-off text, under the run in Traces: parent span execute agent::run
+5. Fork the SyntaxError run with the model answer repaired
+    model answer at seq 1 was {"tool_call":{"args":"{\"attendee\":\"omar@example.com\",\"day\":\"2026-11-05\",\"duration\"","name":"calendar::find-slot"}}
+    repaired args {"attendee":"omar@example.com","day":"2026-11-05","duration":15}
+    paused at seq 2 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-05&weeks=2, answering live
+    paused at seq 3 calendar::find-slot, answering typed
+    paused at seq 4 model::complete, answering live
+    paused at seq 5 email::send, answering typed
+    paused at seq 6 model::complete, answering live
+    f3: done {"reply":"Booked undefined with Omar and sent the invite.","status":"booked","turns":3}
+    calls 0:clock::now=recorded 1:model::complete=edited 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-05&weeks=2=live 3:calendar::find-slot=typed 4:model::complete=live 5:email::send=typed 6:model::complete=live
+  PASS the repaired fork ends done with status booked: Booked undefined with Omar and sent the invite.
+6. Save the fork as a test and run it
+    saved tests/rewind/e2e-syntax-repair.json
+  PASS the saved test passes: expected {"status":"booked"}, got done {"reply":"Booked undefined with Omar and sent the invite.","status":"booked","turns":3}
+7. Apply the demo fix and check every SyntaxError run against it
+    32 SyntaxError runs recorded, code on disk ec6017cba856
+  PASS a run is recorded with the code version on disk: ec6017cba856
+  PASS before the patch, every SyntaxError run checks the same as recorded: 32 same
+  PASS checks are not stored as forks
+  PASS a check deletes its namespace and copy
+    applied docs/demo-fix.patch, code on disk eca13a506281
+  PASS rewind::status reports a new code version after the patch
+    replayed e8237071-8d5e-4a8f-b560-cc041cf16ef9 as f5 on code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    calls 0:clock::now=recorded 1:model::complete=recorded
+  PASS a replay after the patch runs the new code
+  PASS the patched agent asks the model again with the same input
+    paused at seq 2 model::complete, answering live
+    paused at seq 3 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-05&weeks=2, answering live
+    paused at seq 4 calendar::find-slot, answering typed
+    paused at seq 5 model::complete, answering live
+    paused at seq 6 email::send, answering typed
+    paused at seq 7 model::complete, answering live
+    f5: done {"reply":"Booked undefined with Omar and sent the invite.","status":"booked","turns":3}
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:model::complete=live 3:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-05&weeks=2=live 4:calendar::find-slot=typed 5:model::complete=live 6:email::send=typed 7:model::complete=live
+  PASS with the fix, the replayed run ends with a reply instead of crashing: Booked undefined with Omar and sent the invite.
+    3aa6d854-4fda-48bc-94c8-0a94052d8c33 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    9f00b377-6bcc-45a8-9fd7-2fa626f4a370 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    189d6c57-4039-412d-9149-2ff20236611f stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    1dc72539-2ea7-4023-8015-bd011b302aaa stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    d10b6140-fecf-48b6-ab97-d720683e126e stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    ea573f70-8328-4430-9610-cdbeac7060ef stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    f87a3b8c-d0cd-4fc1-8eae-55624f356f06 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    281b8990-a5b3-40e6-bc85-7125cff71316 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    240a95ce-8a22-4801-80e6-635557f85a5a stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    bf35e3f5-f3a7-4dbd-abbb-acd5a3821d8d stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    96ed3996-5163-411f-b1df-db5c93f21cfc stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    37c767a8-d839-4a87-85a2-df8a256c5652 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    e345f039-934e-4f61-a199-ecded6819f09 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    78ac5d7f-04cd-418b-9367-d4ff170b982f stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    cca5f505-a448-46de-8db9-f4ea2bafb03b stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    4716a2e9-66cd-4c3b-a76d-e44d9441db1b stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    8d32a642-abd8-404e-a288-6c36c7d7e58c stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    6f014797-5b4f-4b72-8135-6d41ad451c67 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    66672986-e918-4d6f-8378-428fbf0bdcb2 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    ade920d1-1c98-4a72-9dad-a05c936a8db2 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    5fba9351-47fd-4891-89b0-3f3af7a41e65 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    397e991e-7867-4bd2-9c90-616104e7a6a7 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    3d70c6a0-ac3d-48ca-93b9-5ef284468eb0 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    12e0e73d-21df-4665-9c10-558e9a04f94d stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    b06342c9-1b95-4006-ab56-0ffb0f176f75 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    e8237071-8d5e-4a8f-b560-cc041cf16ef9 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    59b67370-fbcd-4cc1-8477-7c8a5ce8a3e5 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    c0b32ad8-4ce9-4ecd-a790-ef2c14d85a4c stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    7022e8fe-c0d9-4c9f-89e9-ac97d307f97c stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    8721fa8c-2b8a-49d7-b90d-b4470f55e4a6 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    93168e13-20d4-41ac-a60a-5e853863e804 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    1868fb6d-c735-4d40-99f1-07fcfddf9b57 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+  PASS after the patch, no SyntaxError run checks the same as recorded: 32 stopped
+  PASS without live calls, each check stops at the retried model::complete, on the patched code
+  PASS a check without live calls runs nothing live and fills nothing
+  PASS rewind::changed sent the new code version and one check event per run: code event true, 32 check events
+8. Check every SyntaxError run against the fix again, with live calls
+    3aa6d854-4fda-48bc-94c8-0a94052d8c33 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    9f00b377-6bcc-45a8-9fd7-2fa626f4a370 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    189d6c57-4039-412d-9149-2ff20236611f stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    1dc72539-2ea7-4023-8015-bd011b302aaa different, code eca13a506281: done {"reply":"I couldn't book it, because the model sent arguments for calendar::find-slot that were not valid JSON twice (Expected ',' or '}' after property value in JSON at position 65).","status":"failed","turns":1}
+      live calls 1, filled nothing
+    d10b6140-fecf-48b6-ab97-d720683e126e stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    ea573f70-8328-4430-9610-cdbeac7060ef different, code eca13a506281: done {"reply":"I couldn't book it, because the model sent arguments for calendar::find-slot that were not valid JSON twice (Unterminated string in JSON at position 49).","status":"failed","turns":1}
+      live calls 1, filled nothing
+    f87a3b8c-d0cd-4fc1-8eae-55624f356f06 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    281b8990-a5b3-40e6-bc85-7125cff71316 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    240a95ce-8a22-4801-80e6-635557f85a5a different, code eca13a506281: done {"reply":"I couldn't book it, because the model sent arguments for calendar::find-slot that were not valid JSON twice (Unterminated string in JSON at position 34).","status":"failed","turns":1}
+      live calls 1, filled nothing
+    bf35e3f5-f3a7-4dbd-abbb-acd5a3821d8d stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    96ed3996-5163-411f-b1df-db5c93f21cfc different, code eca13a506281: done {"reply":"I couldn't book it, because the model sent arguments for calendar::find-slot that were not valid JSON twice (Expected ',' or '}' after property value in JSON at position 63).","status":"failed","turns":1}
+      live calls 1, filled nothing
+    37c767a8-d839-4a87-85a2-df8a256c5652 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    e345f039-934e-4f61-a199-ecded6819f09 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    78ac5d7f-04cd-418b-9367-d4ff170b982f stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    cca5f505-a448-46de-8db9-f4ea2bafb03b different, code eca13a506281: done {"reply":"I couldn't book it, because the model sent arguments for calendar::find-slot that were not valid JSON twice (Unterminated string in JSON at position 54).","status":"failed","turns":1}
+      live calls 1, filled nothing
+    4716a2e9-66cd-4c3b-a76d-e44d9441db1b stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    8d32a642-abd8-404e-a288-6c36c7d7e58c stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    6f014797-5b4f-4b72-8135-6d41ad451c67 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    66672986-e918-4d6f-8378-428fbf0bdcb2 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    ade920d1-1c98-4a72-9dad-a05c936a8db2 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    5fba9351-47fd-4891-89b0-3f3af7a41e65 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    397e991e-7867-4bd2-9c90-616104e7a6a7 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    3d70c6a0-ac3d-48ca-93b9-5ef284468eb0 different, code eca13a506281: done {"reply":"I couldn't book it, because the model sent arguments for calendar::find-slot that were not valid JSON twice (Unterminated string in JSON at position 34).","status":"failed","turns":1}
+      live calls 1, filled nothing
+    12e0e73d-21df-4665-9c10-558e9a04f94d stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    b06342c9-1b95-4006-ab56-0ffb0f176f75 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    e8237071-8d5e-4a8f-b560-cc041cf16ef9 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    59b67370-fbcd-4cc1-8477-7c8a5ce8a3e5 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    c0b32ad8-4ce9-4ecd-a790-ef2c14d85a4c stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    7022e8fe-c0d9-4c9f-89e9-ac97d307f97c stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    8721fa8c-2b8a-49d7-b90d-b4470f55e4a6 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    93168e13-20d4-41ac-a60a-5e853863e804 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+    1868fb6d-c735-4d40-99f1-07fcfddf9b57 stopped at seq 4 calendar::find-slot, code eca13a506281: paused at seq 4 calendar::find-slot (choices typed, inject, stop)
+      live calls 2, filled nothing
+  FAIL with live calls, every SyntaxError run runs through to a reply on the patched code: 26 stopped, 6 different
+    endings: 26 paused, 6 failed because the model cut its arguments off twice
+  PASS filled lists the one email::send of each run that booked, answered from another run that sent one: 0 filled
+  PASS a live check sends nothing, so the outbox is unchanged: 171 lines before and after
+  PASS a live check runs the new holiday fetch live, before every slot lookup it makes: 26 of 32 runs fetched live
+  PASS reverting the patch brings back the original code version
+    f6 paused on code eca13a506281, answered on ec6017cba856: crashed invocation_failed: Unexpected end of JSON input
+  PASS a paused fork restarts its copy when the code changes, and crashes like the recording again
+  PASS replaying, forking and checking wrote nothing to the outbox: 171 lines before and after
+9. Kill the tools worker during a burst and recover a stopped run
+  PASS found the tools worker to kill
+    killed tools (pid 24724) mid-burst
+    burst {"booked":8,"errors":4,"failed":12,"sent":24}
+  PASS the tools worker came back
+  PASS rewind::lost lists the stopped runs: 12 new
+    lost 91baa58a-faa1-442e-963f-b28a84973e5f at seq 3: I couldn't book it, because calendar::find-slot failed: bridge_error: remote error (function_not_found): Function calendar::find-slot not found in namespace default.
+    lost 00814edf-18a4-4696-badd-a3ddcdf96410 at seq 3: I couldn't book it, because calendar::find-slot failed: bridge_error: remote error (function_not_found): Function calendar::find-slot not found in namespace default.
+    lost 8978eacc-265f-43d8-a811-ff31752d369a at seq 3: I couldn't book it, because calendar::find-slot failed: bridge_error: remote error (invocation_stopped): Invocation stopped
+    lost deaf106e-33f9-4850-b87e-2112e7fa64c4 at seq 3: I couldn't book it, because calendar::find-slot failed: bridge_error: remote error (function_not_found): Function calendar::find-slot not found in namespace default.
+    lost 18cf10a4-44f8-48db-9b6a-d7a20f220c21 at seq 3: I couldn't book it, because calendar::find-slot failed: bridge_error: remote error (invocation_stopped): Invocation stopped
+    tools during the lost run: no changes
+  FAIL the lost run shows tools disconnecting and a new tools worker connecting again
+    recovering 91baa58a-faa1-442e-963f-b28a84973e5f as f7 (recover): paused at seq 3 calendar::find-slot (choices live, typed, inject, stop)
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-02&weeks=2=recorded
+  FAIL the recovery replays the finished calls, runs the rest live, and stops at the irreversible call: lost at seq 3
+    paused at seq 3 calendar::find-slot, answering live
+    paused at seq 5 email::send, answering live
+    f7: done {"reply":"Booked Monday 2 Nov at 1:00 pm with Lena and sent the invite.","status":"booked","turns":3}
+  PASS the recovered run books once the send is answered: Booked Monday 2 Nov at 1:00 pm with Lena and sent the invite.
+  FAIL recovering wrote nothing to the outbox
+
+30 of 38 checks passed

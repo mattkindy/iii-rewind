@@ -1,0 +1,29 @@
+Traces on split, 2026-10-31T16:04:19.120Z
+run 3b7832f3-eb7f-4d0a-958b-a7f25e39dd02, trace 960d3f4030b69ca276dfb7a0bfed21f3, 7 calls recorded by Rewind A
+  seq 0 clock::now trace=960d3f4030b69ca276dfb7a0bfed21f3 span=a00e0502f94dfe79
+  seq 1 model::complete trace=960d3f4030b69ca276dfb7a0bfed21f3 span=2b9a6ecfbe44b3da
+  seq 2 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-02&weeks=2 trace=960d3f4030b69ca276dfb7a0bfed21f3 span=0544d25bdc36dc8e
+  seq 3 calendar::find-slot trace=960d3f4030b69ca276dfb7a0bfed21f3 span=70c023b06e1a5d31
+  seq 4 model::complete trace=960d3f4030b69ca276dfb7a0bfed21f3 span=c5148aa1a70cc9b8
+  seq 5 email::send trace=960d3f4030b69ca276dfb7a0bfed21f3 span=e8022e42e0582d38
+  seq 6 model::complete trace=960d3f4030b69ca276dfb7a0bfed21f3 span=6a78b410ae6f04c6
+engine A has 18 spans in trace 960d3f4030b69ca276dfb7a0bfed21f3: 1 x iii-node: execute traffic::burst; 1 x iii-node: execute agent::run; 1 x iii-node: execute clock::now; 7 x rewind: execute rewind::record; 3 x iii-node: execute model::complete; 2 x iii-node: parseArgs; 1 x iii-node: GET /holidays; 1 x bridge: execute calendar::find-slot; 1 x bridge: execute email::send
+engine B has 6 spans in trace 960d3f4030b69ca276dfb7a0bfed21f3: 1 x iii-python-sdk: execute calendar::find-slot; 1 x iii-python-sdk: find_slot; 2 x rewind: execute rewind::record; 1 x iii-python-sdk: execute email::send; 1 x iii-python-sdk: POST /email
+  B span iii-python-sdk: execute calendar::find-slot, parent on A bridge: execute calendar::find-slot
+  B span iii-python-sdk: find_slot, parent on B iii-python-sdk: execute calendar::find-slot
+  B span rewind: execute rewind::record, parent on A bridge: execute calendar::find-slot
+  B span iii-python-sdk: execute email::send, parent on A bridge: execute email::send
+  B span iii-python-sdk: POST /email, parent on B iii-python-sdk: execute email::send
+  B span rewind: execute rewind::record, parent on A bridge: execute email::send
+engine B stored 2 tool spans during the run, in 1 trace(s): 960d3f4030b69ca276dfb7a0bfed21f3
+  B trace 960d3f4030b69ca276dfb7a0bfed21f3: 1 x iii-python-sdk: execute calendar::find-slot; 1 x iii-python-sdk: find_slot; 2 x rewind: execute rewind::record; 1 x iii-python-sdk: execute email::send; 1 x iii-python-sdk: POST /email
+    its root iii-python-sdk: execute calendar::find-slot has parent 70c023b06e1a5d31, which is A's span bridge: execute calendar::find-slot
+    engine A has 18 spans in this trace
+What each engine's trace store keeps of a call that crossed the bridge
+  engine A bridge: execute email::send attributes: iii.function.id
+    event iii.invocation.input: iii.payload.json={"_caller_worker_id":"b4c427bf-a7bb-4efa-b51f-064752b26259","start":"2026-11-02T13:30:00-06:00","subject":"15 minutes, Monday","to":"dana@example.com"}; iii.payload.truncated=false
+    event iii.invocation.output: iii.payload.json={"id":"msg_1b1202be48c0","status":"accepted"}; iii.payload.truncated=false; iii.payload.ok=true
+  engine B iii-python-sdk: execute email::send attributes: iii.function.id
+    event iii.invocation.input: iii.payload.json={"_caller_worker_id": "dc6c9efb-d46a-44ea-bf77-d6350c34121c", "start": "2026-11-02T13:30:00-06:00", "subject": "15 minutes, Monday", "to": "dana@example.com"}; iii.payload.truncated=false
+    event iii.invocation.output: iii.payload.json={"status": "accepted", "id": "msg_1b1202be48c0"}; iii.payload.truncated=false; iii.payload.ok=true
+  engine B iii-python-sdk: POST /email attributes: http.request.method, url.full, server.address, url.scheme, network.protocol.name, url.path, server.port, http.request.header.content-type, http.response.status_code, http.response.body.size, http.response.header.content-type

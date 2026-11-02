@@ -1,0 +1,9 @@
+{
+  "name": "rewind-scripts",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "iii-sdk": "0.25.0",
+    "tsx": "4.19.2"
+  }
+}

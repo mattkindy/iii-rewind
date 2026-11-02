@@ -1,0 +1,17 @@
+{
+  "name": "model",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx src/worker.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "iii-sdk": "0.25.0",
+    "tsx": "4.19.2"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "typescript": "5.9.3"
+  }
+}

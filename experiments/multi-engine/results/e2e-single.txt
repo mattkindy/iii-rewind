@@ -1,0 +1,147 @@
+Rewind e2e against ws://127.0.0.1:50034, outbox experiments/multi-engine/single/data/outbox.jsonl
+  recording agent::run, calendar::find-slot, clock::now, email::send, model::complete, traffic::burst
+  code under test {"changed_at_ms":1793460945551,"version":"ec6017cba856"}
+1. Record a burst of runs
+  burst 1: {"booked":24,"errors":2,"failed":4,"sent":30}, 30 runs recorded
+2. Replay one run of each kind
+  PASS a booked run was recorded
+    run 032191df-1e42-42b0-b5d7-3306b2659f04 replayed as f6: done {"reply":"Booked Friday 6 Nov at 2:30 pm with Sofia and sent the invite.","status":"booked","turns":3}
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-06&weeks=2=recorded 3:calendar::find-slot=recorded 4:model::complete=recorded 5:email::send=recorded 6:model::complete=recorded
+  PASS booked: the replay ends the way the recording did
+  PASS booked: every call came from the recording: 7 of 7
+  PASS a SyntaxError run was recorded
+    run 56f135b7-32f1-42d0-97da-15453e9abea0 replayed as f7: crashed invocation_failed: Unterminated string in JSON at position 44
+    calls 0:clock::now=recorded 1:model::complete=recorded
+  PASS SyntaxError: the replay ends the way the recording did
+  PASS SyntaxError: every call came from the recording: 2 of 2
+  PASS a TypeError run was recorded
+    run 30a3a575-0d80-40e0-9276-6bbe01fe418e replayed as f8: done {"reply":"I couldn't book it, because calendar::find-slot failed: invocation_failed: unsupported type for timedelta minutes component: str","status":"failed","turns":2}
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-04&weeks=2=recorded 3:calendar::find-slot=recorded 4:model::complete=recorded
+  PASS TypeError: the replay ends the way the recording did
+  PASS TypeError: every call came from the recording: 5 of 5
+  PASS a sent twice run was recorded
+    run aa8b7e4c-a255-48fc-979d-569a58dd1a76 replayed as f9: done {"reply":"Booked Tuesday 3 Nov at 3:30 pm with Dana and sent the invite.","status":"booked","turns":3}
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-03&weeks=2=recorded 3:calendar::find-slot=recorded 4:model::complete=recorded 5:email::send=recorded 6:email::send=recorded 7:model::complete=recorded
+  PASS sent twice: the replay ends the way the recording did
+  PASS sent twice: every call came from the recording: 8 of 8
+    inferred: email::send finished after 2504 ms, but the caller called it again with the same input after 1501 ms, so the caller saw a timeout
+  PASS sent twice: the replay made both sends
+    rerun 1513 ms: 0@2+0 1@3+0 2@8+0 3@9+0 4@10+0 5@10+2504 6@1512+0 7@1512+0
+  PASS every fork call has rerun_at_ms and rerun_ms inside its rerun, and the held send takes the caller timeout
+3. Find a run by one of its calls' invocation ids
+    run 032191df-1e42-42b0-b5d7-3306b2659f04, call dda7ae88-b646-4d5a-b2ec-04b683fa2b3b (model::complete)
+  PASS rewind::runs finds a run by a prefix of one of its calls' invocation ids: q dda7ae88 matched 1 run(s)
+    run 032191df-1e42-42b0-b5d7-3306b2659f04: seq 2 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-06&weeks=2
+  PASS a recorded run shows its holiday fetch as a read-only call outside iii: agent, effects read-only, status 200
+    email::send at seq 5: http_out POST http://127.0.0.1:50036/email
+  PASS the Python POST to the email provider is recorded under email::send as an irreversible call outside iii: seq 5, status 200
+  PASS the POST is not one of the run calls, since replays answer email::send itself
+    6 of 6 calls point at their execute span, run span execute agent::run
+  PASS a recorded call's trace_id and span_id point at a span named execute <function_id>, and the run's at execute agent::run
+    f10: trace 4245caa4902d05ff706ac94484240cc8, root execute agent::run
+  PASS a fork's rerun trace has its root span, every fork call has the stub's span in that trace, and rewind::changed says which trace
+    parseArgs threw SyntaxError: Unterminated string in JSON at position 44 on "{\"attendee\":\"lena@example.com\",\"day\":\"2026-1"
+  PASS bug 1: the run shows parseArgs throwing SyntaxError on the cut-off text, under the run in Traces: parent span execute agent::run
+    find_slot raised TypeError: unsupported type for timedelta minutes component: str with {"_caller_worker_id":"ea2b5585-b144-4998-b22b-231427ce64f4","attendee":"lena@example.com","day":"2026-11-04","duration":"60"}
+  PASS bug 2: calendar::find-slot shows find_slot raising TypeError on a duration sent as a string, under the call in Traces: parent span execute calendar::find-slot
+4. Replay a booked run with the holiday server stopped, then fork it onto a holiday
+  PASS found the clock worker, which serves the holidays
+    paused clock (pid 82432), holiday server answering: false
+    f11: done {"reply":"Booked Friday 6 Nov at 2:30 pm with Sofia and sent the invite.","status":"booked","turns":3}
+  PASS a replay returns the recorded holiday response while the holiday server is stopped
+  PASS the holiday server is back after the replay
+  PASS the holiday server lists a holiday in the next 12 weeks
+    moving the meeting to 2026-11-11 (Veterans Day)
+    f12: paused at seq 2 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-11&weeks=2 (choices live, typed, inject, stop)
+  PASS a fork onto another day pauses on the new holiday fetch as a read-only GET
+  PASS the pause's need points at the span of the stub call that paused: execute rewind::outside
+    paused at seq 2 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-11&weeks=2, answering live
+    paused at seq 3 model::complete, answering live
+    f12: done {"reply":"I couldn't book it, because calendar::find-slot failed: 2026-11-11 is a US holiday (Veterans Day)","status":"failed","turns":2}
+    calls 0:clock::now=recorded 1:model::complete=edited 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-11&weeks=2=live 3:model::complete=live
+  PASS running the fetch live finds the holiday, and the run fails with a reply that says so: I couldn't book it, because calendar::find-slot failed: 2026-11-11 is a US holiday (Veterans Day)
+    run 42a2593d-9d68-4887-a4eb-bcca83ebd43b: GET http://127.0.0.1:50036/holidays?from=2026-12-21&weeks=3 -> 200
+  PASS an inbound holiday request is recorded as the root of a run
+    f13 in rewind-h13: done {"body":"{\"from\":\"2026-12-21\",\"to\":\"2027-01-10\",\"holidays\":[{\"date\":\"2026-12-25\",\"name\":\"Christmas Day\"},{\"date\":\"2027-01-01\",\"name\
+  PASS replaying it sends the recorded request to a copy of the clock worker, which returns the same response
+  PASS an inbound POST to the email provider is never replayed: REWIND_NOT_REPLAYABLE
+5. Fork the SyntaxError run with the model answer repaired
+    model answer at seq 1 was {"tool_call":{"args":"{\"attendee\":\"lena@example.com\",\"day\":\"2026-1","name":"calendar::find-slot"}}
+    repaired args {"attendee":"lena@example.com","day":"2026-11-03","duration":30}
+    paused at seq 2 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-03&weeks=2, answering live
+    paused at seq 3 calendar::find-slot, answering live
+    paused at seq 4 model::complete, answering live
+    paused at seq 5 email::send, answering typed
+    paused at seq 6 model::complete, answering live
+    f14: done {"reply":"Booked Tuesday 3 Nov at 3:30 pm with Lena and sent the invite.","status":"booked","turns":3}
+    calls 0:clock::now=recorded 1:model::complete=edited 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-03&weeks=2=live 3:calendar::find-slot=live 4:model::complete=live 5:email::send=typed 6:model::complete=live
+  PASS the repaired fork ends done with status booked: Booked Tuesday 3 Nov at 3:30 pm with Lena and sent the invite.
+6. Save the fork as a test and run it
+    saved tests/rewind/e2e-syntax-repair.json
+  PASS the saved test passes: expected {"status":"booked"}, got done {"reply":"Booked Tuesday 3 Nov at 3:30 pm with Lena and sent the invite.","status":"booked","turns":3}
+7. Apply the demo fix and check every SyntaxError run against it
+    3 SyntaxError runs recorded, code on disk ec6017cba856
+  PASS a run is recorded with the code version on disk: ec6017cba856
+  PASS before the patch, every SyntaxError run checks the same as recorded: 3 same
+  PASS checks are not stored as forks
+  PASS a check deletes its namespace and copy
+    applied docs/demo-fix.patch, code on disk eca13a506281
+  PASS rewind::status reports a new code version after the patch
+    replayed 56f135b7-32f1-42d0-97da-15453e9abea0 as f16 on code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    calls 0:clock::now=recorded 1:model::complete=recorded
+  PASS a replay after the patch runs the new code
+  PASS the patched agent asks the model again with the same input
+    paused at seq 2 model::complete, answering live
+    paused at seq 3 fetch GET http://127.0.0.1:50036/holidays?from=2026-11-03&weeks=2, answering live
+    paused at seq 4 calendar::find-slot, answering live
+    paused at seq 5 model::complete, answering live
+    paused at seq 6 email::send, answering typed
+    paused at seq 7 model::complete, answering live
+    f16: done {"reply":"Booked Tuesday 3 Nov at 3:30 pm with Lena and sent the invite.","status":"booked","turns":3}
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:model::complete=live 3:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-03&weeks=2=live 4:calendar::find-slot=live 5:model::complete=live 6:email::send=typed 7:model::complete=live
+  PASS with the fix, the replayed run ends with a reply instead of crashing: Booked Tuesday 3 Nov at 3:30 pm with Lena and sent the invite.
+    56f135b7-32f1-42d0-97da-15453e9abea0 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    430e46f2-29d6-4598-aebc-51478131b1e5 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+    0cdc62a6-2311-44b9-a002-2e3f404cac76 stopped at seq 2 model::complete, code eca13a506281: paused at seq 2 model::complete (choices live, typed, inject, stop)
+  PASS after the patch, no SyntaxError run checks the same as recorded: 3 stopped
+  PASS without live calls, each check stops at the retried model::complete, on the patched code
+  PASS a check without live calls runs nothing live and fills nothing
+  PASS rewind::changed sent the new code version and one check event per run: code event true, 3 check events
+8. Check every SyntaxError run against the fix again, with live calls
+    56f135b7-32f1-42d0-97da-15453e9abea0 different, code eca13a506281: done {"reply":"Booked Tuesday 3 Nov at 3:30 pm with Lena and sent the invite.","status":"booked","turns":3}
+      live calls 5, filled seq 6 email::send from f5fe2182-4711-4e95-b18f-da4c4a8bd7f1
+    430e46f2-29d6-4598-aebc-51478131b1e5 different, code eca13a506281: done {"reply":"Booked Monday 2 Nov at 3:30 pm with Marcus and sent the invite.","status":"booked","turns":3}
+      live calls 5, filled seq 6 email::send from f5fe2182-4711-4e95-b18f-da4c4a8bd7f1
+    0cdc62a6-2311-44b9-a002-2e3f404cac76 different, code eca13a506281: done {"reply":"Booked Thursday 5 Nov at 1:30 pm with Lena and sent the invite.","status":"booked","turns":3}
+      live calls 5, filled seq 6 email::send from f5fe2182-4711-4e95-b18f-da4c4a8bd7f1
+  PASS with live calls, every SyntaxError run runs through to a reply on the patched code: 3 different
+    endings: 3 booked
+  PASS filled lists the one email::send of each run that booked, answered from another run that sent one: 3 filled
+  PASS a live check sends nothing, so the outbox is unchanged: 68 lines before and after
+  PASS a live check runs the new holiday fetch live, before every slot lookup it makes: 3 of 3 runs fetched live
+  PASS reverting the patch brings back the original code version
+    f17 paused on code eca13a506281, answered on ec6017cba856: crashed invocation_failed: Unterminated string in JSON at position 44
+  PASS a paused fork restarts its copy when the code changes, and crashes like the recording again
+  PASS replaying, forking and checking wrote nothing to the outbox: 68 lines before and after
+9. Kill the tools worker during a burst and recover a stopped run
+  PASS found the tools worker to kill
+    killed tools (pid 20626) mid-burst
+    burst {"booked":11,"errors":1,"failed":12,"sent":24}
+  PASS the tools worker came back
+  PASS rewind::lost lists the stopped runs: 9 new
+    lost f9dfb4d5-9e7c-430e-b7b0-c35f9080c237 at seq 3: I couldn't book it, because calendar::find-slot failed: function_not_found: Function calendar::find-slot not found in namespace default.
+    lost d8d6c898-9c61-4c69-b3e6-813d4e3ed284 at seq 3: I couldn't book it, because calendar::find-slot failed: invocation_stopped: Invocation stopped
+    lost a1589dc3-4ce9-4fcd-96f7-cc2d17c7b615 at seq 3: I couldn't book it, because calendar::find-slot failed: invocation_stopped: Invocation stopped
+    lost e0e55df3-063f-4937-8259-b30915a69413 at seq 3: I couldn't book it, because calendar::find-slot failed: invocation_stopped: Invocation stopped
+    lost e106e593-1baf-4a9a-aab0-0a16bfe0a8cd at seq 3: I couldn't book it, because calendar::find-slot failed: invocation_stopped: Invocation stopped
+    tools during the lost run: disconnected becf8e22, connected 45fc5b1a
+  PASS the lost run shows tools disconnecting and a new tools worker connecting again
+    recovering f9dfb4d5-9e7c-430e-b7b0-c35f9080c237 as f18 (recover): paused at seq 5 email::send (choices live, typed, inject, stop)
+    calls 0:clock::now=recorded 1:model::complete=recorded 2:fetch GET http://127.0.0.1:50036/holidays?from=2026-11-05&weeks=2=recorded 3:calendar::find-slot=live 4:model::complete=live
+  PASS the recovery replays the finished calls, runs the rest live, and stops at the irreversible call: lost at seq 3
+    paused at seq 5 email::send, answering typed
+    f18: done {"reply":"Booked Thursday 5 Nov at 1:00 pm with Priya and sent the invite.","status":"booked","turns":3}
+  PASS the recovered run books once the send is answered: Booked Thursday 5 Nov at 1:00 pm with Priya and sent the invite.
+  PASS recovering wrote nothing to the outbox
+
+60 of 60 checks passed
