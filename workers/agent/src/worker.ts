@@ -24,8 +24,18 @@ type Message = { role: 'user'; content: string } | { role: 'tool'; name: string;
 type ToolCall = { name: string; args: Record<string, unknown> | string }
 type ModelAnswer = { tool_call: ToolCall } | { text: string; status: 'booked' | 'failed' }
 
-type RunInput = { request: string; user?: string }
+type RunInput = { request: string; user?: string; approval?: boolean; approval_timeout_ms?: number }
 type RunOutput = { status: 'booked' | 'failed'; reply: string; turns: number }
+
+// What durable::wait returns: the value someone resolved it with, or that its timeout came first.
+type Decision = { timed_out: true } | { timed_out: false; value: { approved?: unknown } | null }
+
+// The same default iii's harness gives a pending call.
+const APPROVAL_TIMEOUT_MS = 30 * 60_000
+const APPROVAL_CHOICES = [
+  { label: 'Approve', value: { approved: true } },
+  { label: 'Decline', value: { approved: false } },
+]
 
 type Holidays = { holidays: { date: string; name: string }[] }
 
@@ -89,9 +99,36 @@ async function blocked(name: string, args: Record<string, unknown>): Promise<str
   return holiday && `${args.day} is a US holiday (${holiday})`
 }
 
+/**
+ * With `approval` in the input, an invite goes out only after a person approves it. The wait is a
+ * step of the durable run, so the run parks until someone resolves it, and the agent keeps nothing
+ * for it meanwhile. A wait's name gets one value per run, so one answer covers every send.
+ */
+async function unapproved(name: string, args: Record<string, unknown>, input: RunInput): Promise<string | undefined> {
+  if (name !== 'email::send' || !input.approval) {
+    return undefined
+  }
+
+  const decision = await worker.call<unknown, Decision>({
+    function_id: 'durable::wait',
+    payload: { name: 'approval', timeout_ms: input.approval_timeout_ms ?? APPROVAL_TIMEOUT_MS, detail: { function_id: name, input: args }, choices: APPROVAL_CHOICES },
+  })
+  if (decision.timed_out) {
+    return 'nobody approved the invite in time'
+  }
+
+  return decision.value?.approved === true ? undefined : 'the invite was not approved'
+}
+
 /** The tool's output, or `{ error }` with the message the SDK gave, which the model reads on its next turn. */
-async function runTool(toolCall: ToolCall): Promise<unknown> {
+async function runTool(toolCall: ToolCall, input: RunInput): Promise<unknown> {
   const args = parseArgs(toolCall.args)
+  // Outside the try, so a run that parks here stops rather than handing the model the stop as a tool error.
+  const refused = await unapproved(toolCall.name, args, input)
+  if (refused) {
+    return { error: refused }
+  }
+
   try {
     const reason = await blocked(toolCall.name, args)
     if (reason) {
@@ -124,7 +161,7 @@ async function run(input: RunInput): Promise<RunOutput> {
       return { status: answer.status, reply: answer.text, turns: turn }
     }
 
-    const result = await runTool(answer.tool_call)
+    const result = await runTool(answer.tool_call, input)
     messages.push({ role: 'tool', name: answer.tool_call.name, result })
   }
 
@@ -143,6 +180,17 @@ worker.registerFunction('agent::run', run, {
         description: 'What to book, in plain English, such as "Book 30 minutes with Dana next Tuesday afternoon"',
       },
       user: { type: 'string', description: 'Who is asking' },
+      approval: {
+        type: 'boolean',
+        default: false,
+        description: 'Wait for a person to approve each invite before it goes out. Until then the run returns { pending: true }, and journal::resolve with name "approval" and { approved: true } lets it go on',
+      },
+      approval_timeout_ms: {
+        type: 'integer',
+        minimum: 0,
+        default: APPROVAL_TIMEOUT_MS,
+        description: 'How long to wait for the approval before the run goes on without sending',
+      },
     },
     required: ['request'],
   },
