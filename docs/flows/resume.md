@@ -5,7 +5,9 @@ dies in the middle of `agent::run`, the journal starts the run again on the agen
 brings back, with the same workflow id, and every step that already finished gets its saved result
 instead of being called again. It happens without anyone starting it, and the on-call person steps
 in only when a step that was in flight can't be repeated safely (job 6 in [jobs.md](../jobs.md),
-which was written before the journal and doesn't name it).
+which was written before the journal and doesn't name it). Such a step waits for the person as a
+pending step, the same way a run that stops on purpose waits for a value, which [Pause](pause.md)
+covers.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../media/flow-resume-dark.svg">
@@ -41,7 +43,8 @@ which was written before the journal and doesn't name it).
 6. **The preload** in the restarted agent calls `journal::begin` again. The journal refuses it as
    `DIVERGED` if the function or input hash don't match the workflow. Otherwise it gives the run
    epoch 2 and the restarted agent as its owner, and returns the saved steps. If the step that was
-   in flight needs a person, the workflow pauses here, before any of the code runs again.
+   in flight needs a person, it becomes a pending step and the workflow waits here, before any of
+   the code runs again.
 7. **The agent's code** runs again from the top. Each step with a saved result returns it without a
    call, as long as its function and input hash match. A mismatch stops the run as `DIVERGED`, and
    the journal marks the workflow failed.
@@ -53,8 +56,9 @@ which was written before the journal and doesn't name it).
 9. **The preload** calls `journal::finish` when the code returns or throws. The journal marks the
    workflow done or failed and wakes everyone waiting in `journal::wait`, who get the workflow with
    its output.
-10. **A person** answers a workflow that paused at step 6 with `journal::answer`, and the next sweep
-    starts the run again. The next section has the details.
+10. **A person** resolves a step left pending at step 6, from Rewind's page or with
+    `journal::resolve`, and the journal starts the run again at once. The next section has the
+    details.
 
 If the old handler is still running, because only its connection dropped, its next write to the
 journal still says epoch 1. The journal refuses it as `FENCED` and keeps a record of it, and the
@@ -63,29 +67,32 @@ on.
 
 ## How it waits for a person
 
-The journal pauses a run when the step in flight at the crash is irreversible without
-`idempotency_key: true`, writes, or declares no effects. It pauses in `journal::begin` at step 6:
-the workflow's status becomes `paused`, with `pause: { step, function_id, reason: "lost" }` and no
-owner. `agent::run` throws `PAUSED: <workflow> is paused at step n (<function>)`, and the message
-says to answer it with `journal::answer`. The journal logs the pause, and `journal::wait` returns
-the workflow with status `paused`, which `traffic::burst` counts as paused. The sweep leaves a
-paused workflow alone, and calling `agent::run` again with the same id throws the same error.
+A step in flight at the crash that is irreversible without `idempotency_key: true`, writes, or
+declares no effects can't be sent again safely, so the journal leaves it pending, the same way it
+leaves a `durable::wait` pending ([Pause](pause.md)). It does this in `journal::begin` at step 6:
+the step's status becomes `pending` with kind `lost`, and the workflow's status becomes `waiting`
+with no owner. `agent::run` returns `{ pending: true, workflow_id, waiting_for }` without running
+any of its code. The journal logs it, `journal::wait` returns the workflow with status `waiting`
+and its pending step, and `traffic::burst` counts it as waiting. The sweep leaves a waiting
+workflow alone, and calling `agent::run` again with the same id returns the same reply.
 
-A person finds paused workflows with `journal::list` and `{ status: "paused" }`, or looks at one
-with `journal::get`, and answers with `iii call`:
+Rewind's page lists the run under Waiting, as "Cut off mid-call · billing::charge", and offers
+Send again and Enter its result, with neither picked. Without the page, a person finds waiting
+workflows with `journal::list` and `{ status: "waiting" }` and resolves one with `iii call`:
 
-- `{ workflow_id, step, again: true }` sends the step again, with its key if it has one.
-- `{ workflow_id, step, outcome: { ok: true, value } }`, or `{ ok: false, error }`, takes that as
-  the step's result and sends nothing.
+- `{ workflow_id, step, action: "execute" }` sends the step again, with its key if it has one.
+- `{ workflow_id, step, value }`, or `{ workflow_id, step, error }`, takes that as the step's
+  result and sends nothing.
 
 ```bash
-iii call --engine ws://127.0.0.1:49334 journal::answer --json '{"workflow_id":"burst-1a2b3c4d-7","step":4,"again":true}'
+iii call --engine ws://127.0.0.1:49334 journal::resolve --json '{"workflow_id":"burst-1a2b3c4d-7","step":4,"action":"execute"}'
 ```
 
-Either way the workflow becomes `running` with no owner, the sweep calls `agent::run` again within
-about a second, and the run goes on from step 6. Rewind's page doesn't show these pauses. In this
-app every callee is either repeatable or keyed, so a run never pauses this way, and only the
-journal's unit tests cover the answer path.
+Either way the workflow becomes `running` with no owner, the journal calls `agent::run` again at
+once, and the run goes on from step 6. A second resolve returns `resolved: false`. In this app
+every callee is either repeatable or keyed, so a crash never leaves a step pending this way, and
+the journal's unit tests cover it. `journal::resolve` took the place of `journal::answer`, which
+only those tests called.
 
 ## What it guarantees and what it doesn't
 
@@ -124,8 +131,8 @@ Some things still happen twice or not at all:
 - A durable function's code may depend only on its input and on what its calls return. Changing
   the code while runs are in flight fails those runs as `DIVERGED`.
 - The journal reads each callee's effects from the function list when it writes the step's intent.
-  A callee the engine didn't list at that moment counts as declaring nothing, and pauses if it was
-  in flight.
+  A callee the engine didn't list at that moment counts as declaring nothing, and is left pending
+  for a person if it was in flight.
 - The journal is one SQLite file, `data/journal.sqlite`, in one process, and nothing replicates
   it.
 - Resume doesn't help when a callee's worker dies. The callee's `invocation_stopped` is saved as the
@@ -140,8 +147,10 @@ Some things still happen twice or not at all:
 - `workers/rewind/preload/node/sdkHooks.mjs`: the loader hook that wraps what `registerWorker`
   returns; `index.mjs`: loading it only in record mode.
 - `workers/journal/src/worker.ts`: the `journal::*` functions; `store.ts`: workflows, steps,
-  epochs, fencing and pauses; `resume.ts`: sending a step again, with its key, or pausing;
-  `recovery.ts`: the sweep and `journal::on-workers-changed`; `callees.ts`: each callee's effects.
+  epochs, fencing and pending steps; `resume.ts`: sending a step again, with its key, or leaving
+  it for a person; `recovery.ts`: the sweep, `journal::on-workers-changed`, and starting a run
+  whose pending step was resolved; `callees.ts`: each callee's effects.
+- `workers/rewind/ui/src/components/waitingRun.tsx`: the page's Send again and Enter its result.
 - `workers/agent/src/worker.ts`: `durable: true` on `agent::run`.
 - `workers/tools/src/main.py`: `email::send` keeping the keys it has seen.
 - `workers/traffic/src/worker.ts`: workflow ids, waiting in `journal::wait`, and the queue path.

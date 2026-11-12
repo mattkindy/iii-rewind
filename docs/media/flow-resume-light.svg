@@ -11,7 +11,7 @@
 <line x1="460" y1="76" x2="460" y2="656" stroke="#e1dfe9" stroke-width="1.5"/>
 <rect x="15" y="30" width="90" height="46" rx="9" fill="#f3f3f6" stroke="#8d8aa0" stroke-width="1.5"/>
 <text x="60" y="49" text-anchor="middle" font-size="12.5" font-weight="600" fill="#1d1b29">You</text>
-<text x="60" y="65" text-anchor="middle" font-size="10.5" fill="#6a6780"><tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5">iii call</tspan></text>
+<text x="60" y="65" text-anchor="middle" font-size="10.5" fill="#6a6780">Rewind's page</text>
 <rect x="115" y="30" width="90" height="46" rx="9" fill="#e6effc" stroke="#1d5fc4" stroke-width="1.5"/>
 <text x="160" y="49" text-anchor="middle" font-size="12.5" font-weight="600" fill="#1d1b29">traffic</text>
 <text x="160" y="65" text-anchor="middle" font-size="10.5" fill="#6a6780">the caller</text>
@@ -96,8 +96,8 @@
 <text x="179.01" y="591.5" font-size="12" fill="#1d1b29"><tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5">journal::wait</tspan> returns it</text>
 <line x1="72" y1="638" x2="350" y2="638" stroke="#be185d" stroke-width="2.6" stroke-dasharray="0.5 5.5" stroke-linecap="round"/>
 <path d="M349,633 L358,638 L349,643" fill="none" stroke="#be185d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-<rect x="113.89000000000001" y="618" width="202.21999999999997" height="15" rx="4" fill="#ffffff" opacity="0.94"/>
-<text x="117.89000000000001" y="629.5" font-size="12" fill="#1d1b29">if it paused: <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5">journal::answer</tspan></text>
+<rect x="113.68" y="618" width="202.64" height="15" rx="4" fill="#ffffff" opacity="0.94"/>
+<text x="117.68" y="629.5" font-size="12" fill="#1d1b29">if it waits: <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5">journal::resolve</tspan></text>
 <circle cx="60" cy="638" r="9.5" fill="#be185d"/>
 <text x="60" y="642" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">10</text>
 <line x1="12" y1="678" x2="30" y2="678" stroke="#4b4862" stroke-width="2"/>

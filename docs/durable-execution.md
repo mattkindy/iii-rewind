@@ -13,6 +13,9 @@ Today's code finished none of its 22 interrupted runs. A caller that starts a st
 finished all 24 of its interrupted runs, but sent 6 bookings two invites and made 36 extra model
 calls. The table is under [What it measured](#what-it-measured).
 
+A durable run can also pause on purpose, to wait for a person's approval or another value, or to
+sleep, with no worker running it while it waits. [Pausing a run](#pausing-a-run) covers that.
+
 ## What durable means here
 
 A function opts in with `durable: true` in its metadata. In this repo that is `agent::run`. For a run
@@ -24,8 +27,8 @@ of such a function:
   run's code gets the saved result instead.
 - A call that was in flight when the worker died is made again when its function declares that a
   repeat is harmless (`pure`, `read-only` or `external`), and made again with the same idempotency
-  key when it is irreversible and takes a key, as `email::send` now does. Anything else pauses the
-  run for a person.
+  key when it is irreversible and takes a key, as `email::send` now does. Anything else is left as
+  a pending step, and the run waits for a person to resolve it.
 - `email::send` drops a call whose key it has seen, so the step in flight at a crash sends one
   invite.
 - A handler that lost its connection but kept running cannot save anything once the run has started
@@ -69,7 +72,8 @@ What it does not do:
 6. `journal::begin` gives the run epoch 2 and returns its saved steps. The code runs again from the
    top. Each step that has a result returns it without a call, as long as the function and input
    hash match. A mismatch fails the run as `DIVERGED`. The step that was in flight is sent again
-   with its original idempotency key, or pauses the run, by what its function declares.
+   with its original idempotency key, or is left pending for a person, by what its function
+   declares.
 7. The run finishes and `journal::finish` saves its output. The caller, waiting in `journal::wait`,
    gets it.
 8. If the old handler was still running, its next write comes with epoch 1. The journal refuses it as
@@ -112,7 +116,8 @@ durable is opt-in per function.
 
 **An in-flight step is decided by what its function declares.** A read, or an `external` call that
 asks an outside service a question, is sent again. An irreversible call that takes an idempotency
-key is sent again with the same key. Everything else pauses for a person, through `journal::answer`.
+key is sent again with the same key. Everything else waits for a person, who resolves it with
+`journal::resolve` or on Rewind's page.
 What lost: Rewind's recovery rule, which pauses at any lost call that isn't `pure` or `read-only`,
 so it would also pause at a lost `external` call. The model is `external`, and most crashes land
 during a model call: under that rule, 9 of the 15 runs the recovery started again, and 11 of the 17
@@ -276,3 +281,192 @@ stops retrying a send without a key of its own.
 - Kill the queue worker and the engine mid-burst, which these runs didn't.
 - Port the wrapper to the Python preload, which has `iii.current_invocation()` and could wrap
   `register_function` and `call` the same way.
+
+## Pausing a run
+
+A durable run can stop on purpose and wait: for a value from outside, such as a person's approval,
+with an optional timeout, or for a set time. Once the journal has saved the waiting step, the run
+continues exactly once after the step gets its value, with that value, on whichever worker hosts
+the function then. Nothing runs the run while it waits. The handler has returned, and its worker
+keeps no memory, no running handler and no open call for it, so the worker can die and the journal
+can restart in the meantime. A value and a timeout racing for one wait can't both land, a value sent
+before the run reaches its wait is kept for it, and a second value is refused. The words are the
+ones iii's harness uses for a tool call that parks a turn: the waiting step is pending, and something
+resolves it with a value. The agent uses it with `approval: true`, to wait for a person before each
+invite, and [the pause flow](flows/pause.md) walks through it.
+
+In the probes, a run whose worker was killed while it waited for approval finished once with one
+send after it was approved, and so did all 28 of the agent's runs that parked before their invite
+when the agent was killed under them. A 10 s sleep woke 8 ms after its wake time though the journal
+was killed 3 s in. With 200 runs waiting, the worker had no handlers running and the caller no open
+calls, and all 200 finished once after their values arrived, half of them after the worker was
+killed. The rival, a handler that awaits a promise, lost every run its worker died under, dropped a
+value that came early, and left all 200 of its callers to time out after 30 s.
+
+### How a wait goes
+
+1. The run's code calls
+   `worker.call({ function_id: 'durable::wait', payload: { name, timeout_ms, detail, choices } })`.
+   Only `name` is needed. `detail` and `choices` are for the person who resolves it: the agent
+   passes the invite it is about to send, and Approve and Decline.
+2. The preload checks the arguments, takes the next step number, and checks the step against a
+   saved one the way it checks any call. When an earlier execution already has the wait's result,
+   the code gets it without asking anyone.
+3. Otherwise the preload calls `journal::park`. In one transaction the journal fences the epoch and
+   looks for a value already sent to the wait's name. When there is one, it becomes the step's
+   result and the code goes on at once. When there isn't, the step is saved as pending with its
+   deadline, `now + timeout_ms`, and the workflow becomes `waiting` with no owner.
+4. The preload marks the run stopped with `WAITING`. The wait throws, every later call in the
+   handler throws whatever the code does with the error, and the handler returns
+   `{ pending: true, workflow_id, waiting_for }`. A call that was already out finishes, and the
+   journal still saves its result, but it refuses any new step with `WAITING`.
+5. Nothing runs the workflow. The recovery sweep only takes workflows that are running, and the
+   journal keeps one timer set for the next deadline in its `pending` table, read again each time
+   it starts.
+6. Someone calls `journal::resolve` with `{ workflow_id, name, value }`, or with the step's number
+   in place of the name. In one transaction the journal saves `{ timed_out: false, value }` as the
+   step's result, keeps the value under the name, ends the pending, and sets the workflow running
+   with no owner. When the deadline comes first, the journal's timer does the same with
+   `{ timed_out: true }`, and a resolve after that returns `{ resolved: false, reason }`.
+7. The journal calls the function again at once with the workflow's input and `_workflow_id`, the
+   way recovery does, without waiting for the sweep or the queue.
+8. The code runs again from the top. Every finished step returns its saved result, the wait
+   included, and the run goes on from the wait.
+
+`durable::sleep` with `{ ms }` goes the same way, with a wake time for its deadline and `{ slept_ms }`
+for its result. A step a crash cut off, which can't be sent again safely, is one more pending step,
+of kind `lost`, that `journal::begin` leaves for a person. `journal::resolve` sends it again with
+`action: "execute"`, or takes a `value` or an `error` as its result. That replaced `journal::answer`
+and the `paused` status, which only the journal's unit tests used. Rewind's page lists every
+waiting run under Waiting, one row for each thing runs wait on, and opens each run on its one
+question: the wait's choices, a value, Wake now, or Send again and Enter its result.
+
+### Decisions
+
+**A pause is a step, and the run starts again from the top.** The journal already knows how to
+start a run again and hand it saved results, and a wait that is a numbered step gets the replay
+check, the fencing and the crash handling of every other step for free. What lost: resuming the
+handler where it stopped. JavaScript can't save a stack, so that would mean keeping the handler in
+memory, which is the rival, and it dies with the worker.
+
+**A parked handler returns `{ pending: true }` rather than throwing.** That is the shape iii's
+harness uses for a trigger whose result comes later. Thrown, the stop reaches the caller as
+`invocation_failed`, because the SDK replaces the code of an error a handler throws, and the queue
+retries a run that throws, up to `max_retries`, then dead-letters it. What lost: an answer the
+caller can't take for success. A caller that ignores the shape sees a success with no booking, so
+`traffic::burst` and the e2e check look for `pending`. The agent's response format doesn't list it,
+since every durable function can return it.
+
+**A wait's value is kept by the wait's name, once per run, even when it comes early.** A sender
+then needs only the workflow id and the name, which a caller picks, and not the step number, which
+only the run knows. A value sent before the run gets there is kept, and a second wait with the same
+name gets the same value. What lost: a value per step, which would make every sender wait until the
+run has parked and look up its step, and a queue of values per name, the way Temporal's signals
+queue up, which a loop could read one at a time.
+
+**The value and the timeout race in one SQLite transaction.** better-sqlite3 runs the journal's
+transactions one at a time, and both the resolve and the timer insert the wait's row in
+`wait_values`, keyed by workflow and name, in the same transaction that saves the step's result. The
+second one finds the row and changes nothing. What lost: a timer in the worker, the way the rival
+races its promise against `setTimeout`, which dies with the worker.
+
+**Deadlines are rows in the journal, with one timer for the next.** The journal reads the next
+deadline from SQLite whenever it starts or something parks or resolves, so a deadline outlasts a
+restart and fires within milliseconds when the journal is up. What lost: polling every second, which
+is up to a second late, and a delayed job on iii's queue, which would put a second store in charge
+of when a run wakes.
+
+**A cut-off step is one more pending step.** A crash that leaves an irreversible call in doubt and
+a wait for approval both need a person to give a step its result, so they share the journal's
+pending table, `journal::resolve` and the page. What lost: `journal::answer` and the `paused`
+status. Nothing outside the journal's unit tests called `journal::answer`, so it is gone rather than
+kept as a second name.
+
+**Rewind's page calls the journal directly.** The page reads `journal::list` and calls
+`journal::resolve` over the console's connection, and reads the list again after each `run` event
+Rewind sends, since a run that parks or goes on ends an execution Rewind records. Rewind's core is
+unchanged. What lost: going through Rewind's core, which could group a waiting run with its
+recorded executions, for more Rust and no new behavior on the page.
+
+**`durable::wait` and `durable::sleep` are also functions in the journal, and not internal.** A call
+that reaches them came from outside a durable run, so they fail with an error saying so instead of
+leaving the caller with `function_not_found`. Because they aren't internal, the engine lists them,
+Rewind stubs them in its copies, and a replay of a run that waited pauses at the wait for a person.
+The first e2e run found the other way: marked internal, a check of an approval run failed inside the
+copy with `function_not_found`. What lost: keeping them out of Rewind's function list, where they
+now show up with no declared effects.
+
+### What it measured
+
+Each part ran once, on final code. Parts 1 to 5 ran in `experiments/durable/q3Pause.ts`, on a probe
+engine of their own: a `pauser` role with the preload and the journal, and a `rival` role whose
+handler awaits a promise until the value arrives, with the same callee, the same steps and the same
+`--expose-gc`. The agent row ran `q4Approval.ts` on the experiment's stack: 40 runs of
+`agent::run` with `approval: true`, the agent killed with SIGKILL while those that parked waited,
+and every parked run approved after compose restarted it. The ceiling is every run continuing
+exactly once after its value arrives, with no duplicate sends. The machine is the same M2 Max, at a
+load average of about 3.
+
+| Measurement | Ceiling | Pause, with the journal | Rival, awaiting in the handler |
+| --- | --- | --- | --- |
+| 1. The worker dies while a run waits for approval, then it's approved | finishes once, one send | Finished, 2 executions, 1 send. The second execution began 5 ms after the resolve | The caller got `invocation_stopped`. The resolve after the restart didn't find the run. Never finished, 0 sends |
+| 1, the agent: 40 runs, the agent killed while 28 waited | 28 booked, 28 single invites | 28 of 28 resolved, done and booked, 2 executions each, 0 invites while waiting. Every booking got one invite per `email::send` step: 22 got one, and 6 got two from two steps, the agent's own retry of a slow send (bug 3). 0 from the kill or the resume | not run |
+| 2. A 10 s sleep, the journal killed 3 s in and back 2 s later | wakes on time | Woke 8 ms after its wake time, `slept_ms` 10,002 | Its worker killed 3 s in: `invocation_stopped`, never woke |
+| 3. A 2 s timeout and no value, then a late value | the timeout wins, the late value is refused | `{ timed_out: true }`, the late resolve `resolved: false`, 0 sends | The same while its worker lives |
+| 3. 40 waits, each resolved between 150 ms before and 150 ms after its 1 s timeout | one result each, and the resolver told which | 20 values won and 20 timeouts. The resolver's answer matched what the run got in 40 of 40, every run has one recorded value, 20 sends | not run |
+| 4. The value sent while the run is still thinking, before its wait | used at the wait | `resolved: true, resumed: false`. The run never parked: 1 execution, 1 send | `resolved: false`, the value dropped. The run timed out 5 s later, 0 sends |
+| 5. 200 runs waiting at once | the worker keeps nothing, each continues once | 200 parked in 176 ms. 0 handlers running, 0 calls open. Heap after a GC 17.68 → 17.94 MB. 100 resolved, the worker killed, 100 more resolved: 200 of 200 done, each sent once, 0 repeats | 200 handlers running and 200 calls open. Heap 15.96 → 17.13 MB. All 200 callers timed out after 30 s while the handlers still waited. 100 resolved and sent with no caller left, the worker killed, the other 100 lost |
+
+Memory isn't where the rival hurts at 200 runs: its waiting handlers cost about 1.2 MB of heap, and
+the pauser's heap grew 0.26 MB. RSS went the other way, 93.8 → 105.1 MB for the pauser against
+90.7 → 94.8 MB for the rival, because the pauser's handlers all ran and returned in the same 176 ms,
+and V8 keeps the pages it grew into. The agent's RSS went from 118 MB, read before its first run, to
+156 MB with 28 runs waiting, which mixes warming up with anything held; that is why the probe reads
+the heap after a GC. What the rival keeps that matters is a running handler and an open call per
+run, which time out at 30 s and die with the worker. The pause's cost is a restart of the run per
+wait: the second execution replays every step before the wait from the journal, and in the agent
+the 28 resumed runs were all done 2.8 s after the resolves.
+
+The probes' output is `experiments/durable/results/q3Pause.txt` and `q4Approval.txt`, with the
+numbers in the matching `.json`. Screenshots of the page before and after a run is approved are
+`pause-waiting-run-before-dark.png`, `pause-waiting-run-after-dark.png` and their light versions,
+and `pause-landing-dark.png` shows the Waiting row on the landing.
+
+### Limits
+
+**Only Node workers with the preload can pause.** Anywhere else, and outside a durable run, a call
+to `durable::wait` or `durable::sleep` fails at once with an error saying it only works inside a
+durable run. The preload throws `NOT_DURABLE` when there is no run, and the journal's own
+`durable::*` functions fail the same way for a worker without the preload.
+
+**A pause restarts the run.** Every step before the wait replays from the journal on the way back,
+which costs the run little, but requests around iii, such as the holiday fetch, run again, and so
+does any code between them. A sleep of a few milliseconds costs the same restart.
+
+**The caller gets `{ pending: true }`.** The run's output is in the journal, where `journal::wait`
+returns it once the run ends. `journal::wait` returns as soon as a run waits, so a caller that wants
+the output after a pause asks again.
+
+**One value per name, and one pending step at a time.** A second wait with the same name gets the
+first one's value. Two waits started together park at the first, and the second parks when the run
+comes back to it.
+
+**Nobody checks who resolves.** Anyone who can call functions on the engine can call
+`journal::resolve`. A value sent to a workflow id that doesn't exist yet is kept for it, so a typo
+is kept too, and the reply says `resumed: false`.
+
+**Deadlines depend on the journal's process.** A deadline that passes while the journal is down
+fires when it comes back, and a run whose function isn't hosted then waits for the sweep.
+
+**Rewind and paused runs.** Rewind records the execution that parked as a run that returned
+`{ pending: true }`, and the execution after the resolve as another run. No recording has an answer
+for the wait, since the preload handled it, so a replay, fork or check pauses there and a person
+types its value. The page resolves one run at a time.
+
+**What I would try next.**
+
+- An Approve all on the page for a group of waiting runs, with the same one-decision shape the
+  Interrupted groups use.
+- A token per wait that the resolver has to send, so only whoever the run asked can resolve it.
+- Waits for several values at once, so `Promise.all` of two waits parks once.
+- A `journal::wait` option that waits through pauses to the run's end, so a caller asks once.
