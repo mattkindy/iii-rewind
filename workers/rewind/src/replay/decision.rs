@@ -2,7 +2,7 @@
 //! one, and otherwise a live call, another run's answer, or a pause, by the fork's policy and the
 //! call's declared effects. `decide` reads top to bottom, and `runs_live` is the table behind it.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -30,6 +30,26 @@ pub enum Unanswered {
     LiveOrFill { run_id: String },
 }
 
+/// Whether a replay's own answers also have to match the input of the call they answer.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum OwnInputs {
+    /// A fork's answers match on place and function.
+    #[default]
+    Ignored,
+    /// A saved test's answers also match on input, except at the places its file says match on
+    /// function alone, so a change that sends another input there fails the test.
+    Compared { function_only: BTreeSet<At> },
+}
+
+impl OwnInputs {
+    fn accept(&self, at: &At, function_id: &str, saved: &Value, input: &Value) -> bool {
+        match self {
+            OwnInputs::Ignored => true,
+            OwnInputs::Compared { function_only } => function_only.contains(at) || same_call(function_id, saved, input),
+        }
+    }
+}
+
 /// How one replay treats the calls it has no answer for.
 #[derive(Debug, Clone)]
 pub struct Policy {
@@ -42,10 +62,11 @@ pub struct Policy {
     /// In a recovery, the seq of the call the worker died while running. A lost call that
     /// failed with `function_not_found` has none, because it never reached a worker.
     pub lost_at: Option<u32>,
+    pub own_inputs: OwnInputs,
 }
 
 impl Policy {
-    /// A policy with no stops and no lost call, as checks and saved tests use.
+    /// A policy with no stops and no lost call, as checks use.
     pub fn new(mode: Mode, auto_read: bool, unanswered: Unanswered) -> Self {
         Self {
             mode,
@@ -53,6 +74,16 @@ impl Policy {
             unanswered,
             stops: Vec::new(),
             lost_at: None,
+            own_inputs: OwnInputs::Ignored,
+        }
+    }
+
+    /// A saved test's policy: nothing runs live, and an answer needs the input it was saved with
+    /// unless its place is in `function_only`.
+    pub fn of_test(function_only: BTreeSet<At>) -> Self {
+        Self {
+            own_inputs: OwnInputs::Compared { function_only },
+            ..Self::new(Mode::Debug, false, Unanswered::Pause)
         }
     }
 
@@ -64,6 +95,7 @@ impl Policy {
             unanswered: unanswered_for_fork(record),
             stops: record.stops.clone(),
             lost_at,
+            own_inputs: OwnInputs::Ignored,
         }
     }
 
@@ -145,11 +177,13 @@ pub struct Asked<'a> {
     pub effects: &'a [Effect],
 }
 
-/// What the call gets back: the fork's own answer for the function at that place, then the
-/// recording's answer for the same call there, and otherwise whatever `unanswered` says.
+/// What the call gets back: the fork's own answer for the function at that place, which in a saved
+/// test also needs the same input, then the recording's answer for the same call there, and
+/// otherwise whatever `unanswered` says.
 pub fn decide(answers: &BTreeMap<At, Step>, policy: &Policy, store: &Store, call: &Asked) -> Decision {
     if let Some(step) = answers.get(call.at)
         && step.call.function_id == call.function_id
+        && policy.own_inputs.accept(call.at, call.function_id, &step.call.input, call.input)
     {
         return Decision::Answer(Box::new(step.clone()));
     }
@@ -496,6 +530,46 @@ mod tests {
             panic!("expected the recorded answer");
         };
         assert_eq!(found.call.source, Source::Recorded);
+    }
+
+    fn saved_test(function_only: &[u32]) -> Session {
+        let saved = step(1, "model::complete", json!({ "turn": 1, "today": "2026-11-12" }), Answer::value(json!({ "text": "Booked" })), Source::Recorded);
+        let policy = Policy::of_test(function_only.iter().copied().map(top).collect());
+        Session::new(policy, Vec::new(), placed(BTreeMap::from([(1, saved)])))
+    }
+
+    #[test]
+    fn a_saved_tests_answer_needs_the_input_it_was_saved_with() {
+        let same = json!({ "today": "2026-11-12", "_caller_worker_id": "w", "turn": 1 });
+        assert!(matches!(decide(&saved_test(&[]), &no_runs(), 1, "model::complete", &same, &[]), Decision::Answer(_)));
+        let changed = json!({ "turn": 1, "today": "2026-11-13" });
+        assert_eq!(decide(&saved_test(&[]), &no_runs(), 1, "model::complete", &changed, &[]), NO_ANSWER);
+    }
+
+    #[test]
+    fn a_saved_answer_marked_function_only_takes_whatever_input_the_call_sends() {
+        let changed = json!({ "turn": 1, "today": "2026-11-13" });
+        assert!(matches!(decide(&saved_test(&[1]), &no_runs(), 1, "model::complete", &changed, &[]), Decision::Answer(_)));
+    }
+
+    #[test]
+    fn a_forks_own_answer_still_matches_on_place_and_function_alone() {
+        let edited = step(1, "model::complete", json!({ "turn": 1 }), Answer::value(json!({ "text": "fixed" })), Source::Edited);
+        let session = session(Mode::Debug, false, BTreeMap::from([(1, edited.clone())]));
+        let changed = json!({ "turn": 1, "today": "2026-11-13" });
+        assert_eq!(decide(&session, &no_runs(), 1, "model::complete", &changed, &[]), Decision::Answer(Box::new(edited)));
+    }
+
+    #[test]
+    fn a_saved_request_matches_on_method_url_and_body_whatever_its_headers() {
+        let url = "http://127.0.0.1:49335/holidays?from=2026-11-03&weeks=2";
+        let saved = step(2, HOLIDAYS, outside::normalize_request(&holiday_request(url, "00-a-b-01")), Answer::value(json!({ "status": 200 })), Source::Recorded);
+        let test = Session::new(Policy::of_test(BTreeSet::new()), Vec::new(), placed(BTreeMap::from([(2, saved)])));
+        let traced = outside::normalize_request(&holiday_request(url, "00-c-d-01"));
+        assert!(matches!(decide(&test, &no_runs(), 2, HOLIDAYS, &traced, &read_only()), Decision::Answer(_)));
+        let mut posted = traced.clone();
+        posted["body"] = json!("{}");
+        assert_eq!(decide(&test, &no_runs(), 2, HOLIDAYS, &posted, &read_only()), NO_ANSWER);
     }
 
     #[test]

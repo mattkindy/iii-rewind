@@ -22,8 +22,9 @@ to keep the failing run as a test (job 5 in [jobs.md](../jobs.md)).
    - `entry`, the run's root function, such as `agent::run`;
    - `input`, the run's recorded input;
    - `answers`, one for each call the rerun made, with its `seq`, its `path` when it is a call
-     inside another call, its `function_id`, its `answer`, its `source`, and a `hold` when the
-     caller gave up on that call;
+     inside another call, its `function_id`, the `input` it sent without the engine's
+     `_caller_worker_id`, its `answer`, its `source`, and a `hold` when the caller gave up on that
+     call;
    - `expect`, which is `{ status }` when the output has a `status`, `{ output }` when it doesn't,
      or `{ throws }` with the error message.
 
@@ -33,20 +34,29 @@ to keep the failing run as a test (job 5 in [jobs.md](../jobs.md)).
    path from the project folder and an absolute path all work, as long as the file is inside
    `tests/rewind`. A path that leads anywhere else, with `..` or through a link, is refused with
    `REWIND_BAD_INPUT`.
-4. **Rewind** reads the file and turns each saved answer into an answer at its place.
+4. **Rewind** reads the file and turns each saved answer into an answer at its place. A file whose
+   answers have no `input`, saved before tests compared inputs, is refused with
+   `REWIND_BAD_FIXTURE` until someone saves it again or adds `"match": "function"` to each of
+   those answers.
 5. **Rewind** takes a namespace `rewind-f<n>`, a spare when the entry runs in the worker under test,
    registers the stubs, and makes sure a copy of the entry's worker runs the code on disk. Then it
    calls the entry there with the saved input.
 6. **The stub** for each call returns the saved answer at that place when it is for the same
-   function. When the answer has a `hold`, the stub first waits as long as the recorded call took,
-   so the copy's timeout fires the way it did. A test has no recording behind it, so the stub never
-   compares the input the copy sends.
-7. **The stub** pauses at any call the file has no answer for. Nothing in a test runs live.
+   function and the call sends the saved input. Inputs are compared the way a replay compares one
+   with the recording: as canonical JSON without `_caller_worker_id`, and on method, URL and body
+   for a request around iii. An answer with `"match": "function"` in the file skips the input, for
+   a call whose input changes on every run. When the answer has a `hold`, the stub first waits as
+   long as the recorded call took, so the copy's timeout fires the way it did.
+7. **The stub** pauses at any call the file has no answer for, and at a call whose input differs
+   from the saved one. Nothing in a test runs live.
 8. **The copy's entry** returns, throws or ends at the pause. Rewind closes the namespace and its
-   copy and returns `{ pass, expected, outcome }`. A test passes when the run is done with the
-   expected `status`, or exactly the expected `output`, or when it crashed with the expected error
-   message. A paused run fails. The page shows "Test passed" or "Test failed". Rewind doesn't store
-   a test run as a fork.
+   copy and returns `{ pass, expected, outcome, diverged }`. A test passes when the run is done with
+   the expected `status`, or exactly the expected `output`, or when it crashed with the expected
+   error message. A paused run fails as diverged. `diverged` says where: the call's `seq`,
+   `function_id` and `input`, what the file has at that place under `saved`, and under
+   `differences` each field of the input that changed, as a JSON pointer with the `saved` value
+   and the one the call `sent`. A call the file has no answer for has no `saved`. The page shows
+   "Test passed" or "Test failed". Rewind doesn't store a test run as a fork.
 
 ## What it guarantees and what it doesn't
 
@@ -55,12 +65,12 @@ it needs, so it still runs after Rewind has dropped the recorded run. It runs th
 when it starts, so it tells whether a later change still gets the same ending from the same
 answers.
 
-A test checks the ending and little else. It compares the status, the whole output or the error
-message, and doesn't look at the calls on the way there. The saved answers match on place and
-function alone, so a change that sends a different input to the same call at the same place still
-gets the saved answer and can still pass. A change that adds or reorders a call reaches a place the
-file has no answer for, pauses there, and fails. Answers that came from live calls or from another
-run in the fork are frozen in the file as they were in that rerun.
+A test checks the ending and what each call on the way there sends. It compares the status, the
+whole output or the error message. A change that sends a different input to a call, or adds or
+reorders a call, reaches a call the file has no answer for, pauses there, and fails as diverged.
+An answer marked `"match": "function"` is the exception: its call gets the saved answer whatever
+it sends. Answers that came from live calls or from another run in the fork are frozen in the file
+as they were in that rerun.
 
 ## Limits
 
@@ -69,16 +79,19 @@ run in the fork are frozen in the file as they were in that rerun.
   needs the stack: the engine, Rewind and a copy of the agent.
 - A test copies only the entry's worker. A call that ran in another worker's copy in the fork gets
   the copy's answer back from a stub, and the calls inside it don't happen.
+- A call whose input changes on every run, such as one that quotes the copy's own invocation id,
+  diverges every time the test runs. Rewind can't tell that apart from a change in the code, so a
+  person marks that answer `"match": "function"` in the file.
 - Only a fork can be saved. To save the original run as it was recorded, replay it and save the
   replay. The page offers Save as test on forks and replays that ended, and never on the original.
 
 ## Where it is in the code
 
-- `workers/rewind/src/fixtures.rs`: `save`, `run`, `fixture_of`, `expect_for`, `passes`, the file
-  name and the check that a path stays inside `tests/rewind`.
+- `workers/rewind/src/fixtures.rs`: `save`, `run`, `fixture_of`, `expect_for`, `passes`,
+  `diverged`, the file name and the check that a path stays inside `tests/rewind`.
 - `workers/rewind/src/functions.rs`: `rewind::save-test` and `rewind::test`.
-- `workers/rewind/src/replay/decision.rs`: `decide`, where a saved answer comes first and matches on
-  place and function.
+- `workers/rewind/src/replay/decision.rs`: `decide`, where a saved answer comes first, and
+  `OwnInputs`, which makes a test's answers match on input as well as place and function.
 - `workers/rewind/ui/src/components/saveTest.tsx`: Save as test and Run test;
   `runWorkspace.tsx`: saving and running; `compareView.tsx` and `forkSwitcher.tsx`: where the
   buttons appear.

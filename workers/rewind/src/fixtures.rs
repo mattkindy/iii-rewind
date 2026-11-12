@@ -1,25 +1,26 @@
-//! Tests saved from forks. A fixture says the entry, its input, every answer the
-//! fork gave, and how the run should end. Running one replays it in a fresh
-//! namespace with no recording and no live calls.
+//! Tests saved from forks. A fixture says the entry, its input, every call the fork made with the
+//! input it sent and the answer it got, and how the run should end. Running one replays it with no
+//! live calls, and it diverges at the first call that sends another input or that the file lacks.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     path::{Component, Path, PathBuf},
     sync::Arc,
 };
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Value, json};
 
 use crate::{
     app::App,
+    catalog::Catalog,
     copies::claim,
     error::{Error, Result},
     forks::ForkRecord,
     namespaces,
-    json::normalize_input,
-    replay::{self, Policy, Session, Unanswered},
-    types::{Answer, At, Call, Hold, Mode, Outcome, Source, Step},
+    json::{differences, normalize_input},
+    replay::{self, Policy, Session},
+    types::{Answer, At, Call, Hold, Outcome, Source, Step},
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -30,6 +31,24 @@ pub struct Fixture {
     pub expect: Expect,
 }
 
+/// What a saved answer has to match besides its place and function.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Matching {
+    /// The input the call sends, normalized the way a replay compares inputs.
+    #[default]
+    Input,
+    /// Nothing else. Someone wrote `"match": "function"` in the file for a call whose input changes
+    /// from run to run.
+    Function,
+}
+
+impl Matching {
+    fn is_input(&self) -> bool {
+        *self == Matching::Input
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FixtureAnswer {
     pub seq: u32,
@@ -37,11 +56,27 @@ pub struct FixtureAnswer {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub path: Vec<u32>,
     pub function_id: String,
+    /// What the call sent. A file saved before tests compared inputs has none.
+    #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
+    pub input: Option<Value>,
+    #[serde(default, rename = "match", skip_serializing_if = "Matching::is_input")]
+    pub matching: Matching,
     pub answer: Answer,
     pub source: Source,
     /// Present when the caller gave up on this call, so the test times out the same way.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hold: Option<Hold>,
+}
+
+impl FixtureAnswer {
+    fn at(&self) -> At {
+        At::of(self.seq, &self.path)
+    }
+}
+
+/// Keeps an input of `null` apart from a missing one, which serde would read as none for both.
+fn present<'de, D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Option<Value>, D::Error> {
+    Value::deserialize(deserializer).map(Some)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -92,6 +127,8 @@ pub fn fixture_of(fork: &ForkRecord, entry: &str, input: Value) -> Result<Fixtur
                 seq: step.call.seq,
                 path: step.call.path.clone(),
                 function_id: step.call.function_id.clone(),
+                input: Some(normalize_input(&step.call.input)),
+                matching: Matching::Input,
                 answer: step.call.answer.clone(),
                 source: step.call.source,
                 hold: step.hold.clone(),
@@ -168,21 +205,116 @@ fn resolve(tests_dir: &Path, project_dir: &Path, path: &str) -> Result<PathBuf> 
     Ok(found)
 }
 
-pub async fn run(app: &Arc<App>, path: &str) -> Result<Value> {
-    let path = resolve(&app.config.tests_dir, &app.config.project_dir, path)?;
-    let text = std::fs::read_to_string(&path).map_err(|error| Error::NotFound(format!("{}: {error}", path.display())))?;
-    let fixture: Fixture =
-        serde_json::from_str(&text).map_err(|error| Error::BadFixture(format!("{}: {error}", path.display())))?;
+/// How a saved test ran: whether it passed, the ending it expected and the one it got, and where
+/// it diverged when the code made a call the file has no answer for.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TestRun {
+    pub pass: bool,
+    pub expected: Expect,
+    pub outcome: Outcome,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diverged: Option<Diverged>,
+}
 
-    let answers: BTreeMap<At, Step> = fixture
+/// The call a test paused at, what the file has at that place, and each part of the input that
+/// differs from the saved one.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Diverged {
+    pub seq: u32,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub path: Vec<u32>,
+    pub function_id: String,
+    pub input: Value,
+    /// None when the file has no call at that place, because the code now makes more calls than
+    /// the fork did.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub saved: Option<SavedCall>,
+    pub differences: Vec<Difference>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SavedCall {
+    pub function_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<Value>,
+}
+
+/// One field of the input, as a JSON pointer, with the saved value and the one the call sent. A
+/// field only one of them has leaves the other out.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Difference {
+    pub field: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub saved: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sent: Option<Value>,
+}
+
+/// Where a paused test left its file behind, or none when it ran to an ending.
+pub fn diverged(fixture: &Fixture, outcome: &Outcome) -> Option<Diverged> {
+    let Outcome::Paused { need } = outcome else {
+        return None;
+    };
+    let saved = fixture.answers.iter().find(|answer| answer.at() == need.at());
+    Some(Diverged {
+        seq: need.seq,
+        path: need.path.clone(),
+        function_id: need.function_id.clone(),
+        input: need.input.clone(),
+        saved: saved.map(|answer| SavedCall {
+            function_id: answer.function_id.clone(),
+            input: answer.input.clone(),
+        }),
+        differences: saved
+            .filter(|answer| answer.function_id == need.function_id)
+            .and_then(|answer| answer.input.as_ref())
+            .map(|input| differences_between(input, &need.input))
+            .unwrap_or_default(),
+    })
+}
+
+fn differences_between(saved: &Value, sent: &Value) -> Vec<Difference> {
+    differences(saved, sent)
+        .into_iter()
+        .map(|field| Difference {
+            saved: saved.pointer(&field).cloned(),
+            sent: sent.pointer(&field).cloned(),
+            field,
+        })
+        .collect()
+}
+
+/// A file saved before tests compared inputs would pass whatever its calls send, so it is refused
+/// until someone saves it again or marks the answers that should match on function alone.
+fn without_input(fixture: &Fixture, path: &Path) -> Result<()> {
+    let Some(answer) = fixture
+        .answers
+        .iter()
+        .find(|answer| answer.input.is_none() && answer.matching == Matching::Input)
+    else {
+        return Ok(());
+    };
+
+    Err(Error::BadFixture(format!(
+        "{}: the answer at seq {} ({}) has no input to compare. Save the test again from its fork, or add \"match\": \"function\" to that answer",
+        path.display(),
+        answer.at(),
+        answer.function_id
+    )))
+}
+
+/// The answers a test's run starts with, each at its place with the input it was saved with.
+fn answers_of(catalog: &Catalog, fixture: &Fixture) -> BTreeMap<At, Step> {
+    fixture
         .answers
         .iter()
         .map(|answer| {
-            let (worker, effects) = app.catalog.describe(&answer.function_id);
-            let at = At::of(answer.seq, &answer.path);
+            let (worker, effects) = catalog.describe(&answer.function_id);
+            let at = answer.at();
             let call = Call {
                 worker,
                 effects,
+                input: answer.input.clone().unwrap_or(Value::Null),
                 ..Call::new(&at, answer.function_id.clone(), answer.answer.clone(), answer.source)
             };
             let step = Step {
@@ -191,26 +323,200 @@ pub async fn run(app: &Arc<App>, path: &str) -> Result<Value> {
             };
             (at, step)
         })
-        .collect();
-    let policy = Policy::new(Mode::Debug, false, Unanswered::Pause);
-    let session = Session::new(policy, Vec::new(), answers);
+        .collect()
+}
+
+fn function_only(fixture: &Fixture) -> BTreeSet<At> {
+    fixture
+        .answers
+        .iter()
+        .filter(|answer| answer.matching == Matching::Function)
+        .map(FixtureAnswer::at)
+        .collect()
+}
+
+pub async fn run(app: &Arc<App>, path: &str) -> Result<TestRun> {
+    let path = resolve(&app.config.tests_dir, &app.config.project_dir, path)?;
+    let text = std::fs::read_to_string(&path).map_err(|error| Error::NotFound(format!("{}: {error}", path.display())))?;
+    // A refusal is printed where people share logs, so it leaves out the machine's folders.
+    let shown = path.strip_prefix(&app.config.project_dir).unwrap_or(&path);
+    let fixture: Fixture =
+        serde_json::from_str(&text).map_err(|error| Error::BadFixture(format!("{}: {error}", shown.display())))?;
+    without_input(&fixture, shown)?;
+
+    let session = Session::new(Policy::of_test(function_only(&fixture)), Vec::new(), answers_of(&app.catalog, &fixture));
     let copies = app.copies_for(&fixture.entry, &[])?;
     let namespace = namespaces::fork(claim(app, &copies).await?);
     let space = app.spaces.open(app, &namespace, &copies).await?;
     let ran = replay::run_in(app, &space, &fixture.entry, fixture.input.clone(), session).await;
     app.spaces.close(&namespace).await;
     let outcome = ran?.outcome;
-    Ok(json!({
-        "pass": passes(&fixture.expect, &outcome),
-        "expected": fixture.expect,
-        "outcome": outcome,
-    }))
+    Ok(TestRun {
+        pass: passes(&fixture.expect, &outcome),
+        diverged: diverged(&fixture, &outcome),
+        expected: fixture.expect,
+        outcome,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{ErrorAnswer, Need};
+    use crate::{
+        replay::{
+            Decision,
+            testing::{decide, no_runs, step},
+        },
+        types::{ErrorAnswer, Mode, Need, PauseReason},
+    };
+
+    fn fork_of(steps: Vec<Step>, outcome: Outcome) -> ForkRecord {
+        ForkRecord {
+            fork_id: "f7".into(),
+            number: 7,
+            run_id: "3f2a9c10-aaaa".into(),
+            parent: None,
+            edit_at: None,
+            namespace: "rewind-f7".into(),
+            mode: Mode::Debug,
+            auto_read: false,
+            auto: false,
+            stops: Vec::new(),
+            copy: Vec::new(),
+            answers: BTreeMap::new(),
+            steps,
+            outcome,
+            created_at_ms: 0,
+            code: None,
+            trace_id: None,
+            span_id: None,
+            rerun: None,
+        }
+    }
+
+    const ASKED: &str = "Book 45 minutes with Omar next Wednesday afternoon";
+
+    fn asking(content: &str) -> Value {
+        json!({ "turn": 1, "messages": [{ "role": "user", "content": content }] })
+    }
+
+    /// A fork that read the clock, asked the model once and booked.
+    fn booked_fork() -> ForkRecord {
+        let steps = vec![
+            step(0, "clock::now", json!({}), Answer::value(json!({ "now": "2026-11-12T00:48:20-06:00" })), Source::Recorded),
+            step(1, "model::complete", asking(ASKED), Answer::value(json!({ "text": "Booked", "status": "booked" })), Source::Recorded),
+        ];
+        fork_of(steps, Outcome::Done { output: json!({ "status": "booked", "reply": "Booked", "turns": 1 }) })
+    }
+
+    /// The fork saved as a test and read back from its file, the way `rewind::test` reads it.
+    fn saved(fork: &ForkRecord) -> Value {
+        serde_json::to_value(fixture_of(fork, "agent::run", json!({ "request": ASKED })).unwrap()).unwrap()
+    }
+
+    fn read(file: Value) -> Fixture {
+        serde_json::from_str(&serde_json::to_string_pretty(&file).unwrap()).unwrap()
+    }
+
+    fn test_session(fixture: &Fixture) -> Session {
+        Session::new(Policy::of_test(function_only(fixture)), Vec::new(), answers_of(&Catalog::default(), fixture))
+    }
+
+    fn paused_at(seq: u32, function_id: &str, input: Value) -> Outcome {
+        Outcome::Paused {
+            need: Need {
+                seq,
+                path: Vec::new(),
+                function_id: function_id.into(),
+                input,
+                effects: Vec::new(),
+                choices: Vec::new(),
+                reason: PauseReason::NoAnswer,
+                response_format: None,
+                trace_id: None,
+                span_id: None,
+            },
+        }
+    }
+
+    #[test]
+    fn a_saved_test_answers_every_call_that_sends_what_it_saved() {
+        let fixture = read(saved(&booked_fork()));
+        let session = test_session(&fixture);
+        assert!(matches!(decide(&session, &no_runs(), 0, "clock::now", &json!({}), &[]), Decision::Answer(_)));
+        assert!(matches!(decide(&session, &no_runs(), 1, "model::complete", &asking(ASKED), &[]), Decision::Answer(_)));
+        let booked = Outcome::Done { output: json!({ "status": "booked" }) };
+        assert!(passes(&fixture.expect, &booked));
+        assert_eq!(diverged(&fixture, &booked), None);
+    }
+
+    #[test]
+    fn a_saved_test_fails_as_diverged_when_the_code_sends_another_input() {
+        let fixture = read(saved(&booked_fork()));
+        let changed = format!("{ASKED} (asked by matt)");
+        let paused = decide(&test_session(&fixture), &no_runs(), 1, "model::complete", &asking(&changed), &[]);
+        assert_eq!(paused, Decision::Pause(PauseReason::NoAnswer));
+
+        let outcome = paused_at(1, "model::complete", asking(&changed));
+        assert!(!passes(&fixture.expect, &outcome));
+        let diverged = diverged(&fixture, &outcome).unwrap();
+        assert_eq!(diverged.saved.map(|saved| saved.function_id).as_deref(), Some("model::complete"));
+        let difference = Difference {
+            field: "/messages/0/content".into(),
+            saved: Some(json!(ASKED)),
+            sent: Some(json!(changed)),
+        };
+        assert_eq!(diverged.differences, [difference]);
+    }
+
+    #[test]
+    fn a_call_the_file_has_no_answer_for_diverges_with_nothing_saved_there() {
+        let fixture = read(saved(&booked_fork()));
+        let diverged = diverged(&fixture, &paused_at(2, "email::send", json!({ "to": "omar@example.com" }))).unwrap();
+        assert_eq!((diverged.seq, diverged.saved, diverged.differences), (2, None, Vec::new()));
+    }
+
+    #[test]
+    fn an_answer_marked_function_only_in_the_file_takes_another_input() {
+        let mut file = saved(&booked_fork());
+        file["answers"][1]["match"] = json!("function");
+        let fixture = read(file);
+        let changed = asking(&format!("{ASKED} (asked by matt)"));
+        assert!(matches!(decide(&test_session(&fixture), &no_runs(), 1, "model::complete", &changed, &[]), Decision::Answer(_)));
+        assert_eq!(serde_json::to_value(&fixture).unwrap()["answers"][1]["match"], "function");
+        assert!(serde_json::to_value(&fixture).unwrap()["answers"][0].get("match").is_none());
+    }
+
+    #[test]
+    fn a_file_saved_before_tests_compared_inputs_is_refused_until_it_says_how_to_match() {
+        let mut file = saved(&booked_fork());
+        for answer in file["answers"].as_array_mut().unwrap() {
+            answer.as_object_mut().unwrap().remove("input");
+        }
+
+        let refused = without_input(&read(file.clone()), Path::new("tests/rewind/booked.json")).unwrap_err();
+        assert_eq!(refused.code(), "REWIND_BAD_FIXTURE");
+        assert!(refused.to_string().contains("\"match\": \"function\""), "{refused}");
+        for answer in file["answers"].as_array_mut().unwrap() {
+            answer["match"] = json!("function");
+        }
+
+        assert!(without_input(&read(file), Path::new("tests/rewind/booked.json")).is_ok());
+    }
+
+    #[test]
+    fn a_saved_input_of_null_is_kept_apart_from_a_missing_one() {
+        let answer = |input: Option<Value>| {
+            let mut answer = json!({ "seq": 0, "function_id": "clock::now", "answer": { "value": {} }, "source": "recorded" });
+            if let Some(input) = input {
+                answer["input"] = input;
+            }
+
+            serde_json::from_value::<FixtureAnswer>(answer).unwrap().input
+        };
+        assert_eq!(answer(Some(Value::Null)), Some(Value::Null));
+        assert_eq!(answer(None), None);
+    }
 
     #[test]
     fn a_booked_run_expects_its_status() {
@@ -265,27 +571,7 @@ mod tests {
 
     #[test]
     fn file_names_are_tidied() {
-        let fork = ForkRecord {
-            fork_id: "f7".into(),
-            number: 7,
-            run_id: "3f2a9c10-aaaa".into(),
-            parent: None,
-            edit_at: None,
-            namespace: "rewind-f7".into(),
-            mode: Mode::Debug,
-            auto_read: false,
-            auto: false,
-            stops: Vec::new(),
-            copy: Vec::new(),
-            answers: BTreeMap::new(),
-            steps: Vec::new(),
-            outcome: Outcome::Done { output: json!({}) },
-            created_at_ms: 0,
-            code: None,
-            trace_id: None,
-            span_id: None,
-            rerun: None,
-        };
+        let fork = fork_of(Vec::new(), Outcome::Done { output: json!({}) });
         assert_eq!(file_name(None, &fork), "run-3f2a9c10-f7.json");
         assert_eq!(file_name(Some("Repair the JSON/args"), &fork), "repair-the-json-args.json");
         assert_eq!(file_name(Some("booked.json"), &fork), "booked.json");

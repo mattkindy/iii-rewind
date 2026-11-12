@@ -507,9 +507,12 @@ the WAL index was a SIGBUS.
 ## Tests
 
 `rewind::save-test` writes a fork to `tests/rewind/<name>.json`:
-`{ entry, input, answers: [{ seq, path?, function_id, answer, source }], expect: { status } | { throws } }`.
+`{ entry, input, answers: [{ seq, path?, function_id, input, match?, answer, source, hold? }], expect: { status } | { output } | { throws } }`.
 `entry` is the run's root function. `rewind::test` runs that file the same way as a fork, with no
-live calls, and compares the outcome. A test copies only the root's worker, so a call that ran in another
+live calls, and compares the outcome. A saved answer goes to the call at its place when the call
+is for the same function and sends the same normalized input, unless the answer says
+`"match": "function"`. Any other call pauses the run, and the result's `diverged` shows the saved
+input beside the one the call sent. A test copies only the root's worker, so a call that ran in another
 worker's copy in the fork gets the copy's answer back from a stub.
 
 `rewind::test` takes a test's name, a path from the project folder, or an absolute path, and the
@@ -536,7 +539,7 @@ Every function takes and returns JSON. The UI only talks to Rewind through these
 | `rewind::lost` | `{}` | `[Run & { lost_at, mid_call, recovery: ForkSummary \| null }]` |
 | `rewind::recover` | `{ run_id, auto?, stops?, copy? }` | `Fork` in recovery mode, or the run's existing one |
 | `rewind::save-test` | `{ fork_id, name? }` | `{ path, fixture }`, with `path` from the project folder |
-| `rewind::test` | `{ path }`, a path or a test name | `{ pass, expected, outcome }` |
+| `rewind::test` | `{ path }`, a path or a test name | `{ pass, expected, outcome, diverged? }`, with `diverged: { seq, path?, function_id, input, saved?: { function_id, input }, differences: [{ field, saved?, sent? }] }` when the run paused |
 | `rewind::check` | `{ run_ids, live?, copy? }`, at most 500 runs | `[CheckResult]`, in input order |
 
 `copy` lists the workers to copy besides the root's own. A fork made with a `base` takes the base's

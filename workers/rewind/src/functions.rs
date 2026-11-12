@@ -511,7 +511,7 @@ async fn save_test(app: Arc<App>, input: SaveTestInput) -> Result<Value> {
 }
 
 async fn test(app: Arc<App>, input: TestInput) -> Result<Value> {
-    fixtures::run(&app, &input.path).await
+    json_of(fixtures::run(&app, &input.path).await?)
 }
 
 async fn check(app: Arc<App>, input: CheckInput) -> Result<Value> {
