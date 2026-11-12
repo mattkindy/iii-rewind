@@ -40,7 +40,7 @@ const run = promisify(execFile)
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
 const iii = registerWorker(ENGINE_URL, { workerName: 'rewind-landing-live' })
-const burst = () => iii.trigger({ function_id: 'traffic::burst', payload: BURST, timeoutMs: 180_000 })
+const burst = () => iii.call({ function_id: 'traffic::burst', payload: BURST, timeoutMs: 180_000 })
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true })
 const context = await browser.newContext({ viewport: SIZE, colorScheme: THEME, recordVideo: { dir: OUT, size: SIZE } })

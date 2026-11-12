@@ -2,9 +2,9 @@
  * A stand-in for the Rust Rewind worker, so the page can be built and shot
  * without it. It registers every rewind::* function with the shapes the Rust
  * core returns, over the simulation in sim.ts, provides the
- * rewind::changed trigger type, and injects the built page the way the core
- * does: one content function plus a console:style and a console:script
- * trigger. It also registers its own traffic::burst, so the empty state's
+ * rewind::changed event, and injects the built page the way the core
+ * does: one content function plus a style and a script observer of
+ * ade::ui::asset. It also registers its own traffic::burst, so the empty state's
  * command fills the list live.
  *
  * Run from workers/rewind/ui after npm run build:
@@ -17,7 +17,7 @@
 import { readFileSync, watch } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { InvocationError, registerWorker, TriggerAction } from 'iii-sdk'
+import { CallAction, InvocationError, registerWorker } from 'iii-sdk'
 import type {
   Answer,
   AnswerRequest,
@@ -79,9 +79,9 @@ const ENGINE_URL = process.env.III_URL ?? 'ws://127.0.0.1:49634'
 const SEED = Number(process.env.MOCK_SEED ?? 412)
 const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist')
 
-const ASSETS: { path: string; file: string; type: 'console:style' | 'console:script'; contentType: string }[] = [
-  { path: 'rewind/styles.css', file: 'styles.css', type: 'console:style', contentType: 'text/css; charset=utf-8' },
-  { path: 'rewind/page.js', file: 'page.js', type: 'console:script', contentType: 'text/javascript; charset=utf-8' },
+const ASSETS: { path: string; file: string; kind: 'style' | 'script'; contentType: string }[] = [
+  { path: 'rewind/styles.css', file: 'styles.css', kind: 'style', contentType: 'text/css; charset=utf-8' },
+  { path: 'rewind/page.js', file: 'page.js', kind: 'script', contentType: 'text/javascript; charset=utf-8' },
 ]
 
 // Reads take `delay_ms`. Running a fork takes `run_ms` to start a copy of the
@@ -134,7 +134,7 @@ for (const { name, runtime } of STAND_INS) {
   if (runtime !== 'node') {
     setTimeout(() => {
       void standIn
-        .trigger({ function_id: 'engine::workers::register', payload: { runtime, version: '0.25.0', name }, action: TriggerAction.Void() })
+        .call({ function_id: 'engine::workers::register', payload: { runtime, version: '0.26.0', name }, action: CallAction.Void() })
         .catch(() => undefined)
     }, RUNTIME_AFTER_MS)
   }
@@ -142,26 +142,16 @@ for (const { name, runtime } of STAND_INS) {
 
 // ── rewind::changed ─────────────────────────────────────────────────────
 
-const bindings = new Map<string, { function_id: string; namespace?: string }>()
-
-worker.registerTriggerType(
-  { id: 'rewind::changed', description: 'Fires { kind, id } whenever a run, fork or lost run changes' },
-  {
-    async registerTrigger({ id, function_id, namespace }) {
-      bindings.set(id, { function_id, namespace })
-    },
-    async unregisterTrigger({ id }) {
-      bindings.delete(id)
-    },
-  },
-)
+worker.registerFunction('rewind::changed', (event: ChangedEvent) => event, {
+  description: 'Called with { kind, id } whenever a run, fork or lost run changes. Observe it to get each one.',
+  metadata: { internal: true },
+  private: true,
+})
 
 function changed(kind: ChangedEvent['kind'], id: string, extra: Partial<ChangedEvent> = {}): void {
-  for (const { function_id, namespace } of bindings.values()) {
-    void worker
-      .trigger({ function_id, payload: { kind, id, ...extra }, action: TriggerAction.Void(), namespace })
-      .catch((error: unknown) => process.stdout.write(`CHANGED_FAILED ${function_id} ${String(error)}\n`))
-  }
+  void worker
+    .call({ function_id: 'rewind::changed', payload: { kind, id, ...extra } })
+    .catch((error: unknown) => process.stdout.write(`CHANGED_FAILED ${String(error)}\n`))
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────
@@ -748,18 +738,21 @@ worker.registerFunction(
 )
 
 // Styles before the script, so the page never renders unstyled.
-let registered = ASSETS.map((a) => worker.registerTrigger({ type: a.type, function_id: 'rewind::ui-content', config: { path: a.path } }))
+const publish = () =>
+  ASSETS.map((a) => worker.observe({ function_id: 'ade::ui::asset', args: { kind: a.kind, path: a.path } }, 'rewind::ui-content'))
+let registered = publish()
 
-// A rebuild changes the bytes; registering the paths again makes the console
-// fetch them and hot reload every open tab. The new triggers go in first.
+// A rebuild changes the bytes; observing the paths again makes the console
+// fetch them and hot reload every open tab. The new observers go in first.
 let pending: NodeJS.Timeout | undefined
 watch(dist, () => {
   clearTimeout(pending)
-  pending = setTimeout(() => {
+  pending = setTimeout(async () => {
     const previous = registered
-    registered = ASSETS.map((a) => worker.registerTrigger({ type: a.type, function_id: 'rewind::ui-content', config: { path: a.path } }))
-    for (const trigger of previous) {
-      trigger.unregister()
+    registered = publish()
+    await Promise.allSettled(registered.map((observer) => observer.ready()))
+    for (const observer of previous) {
+      void observer.dispose()
     }
 
     process.stdout.write('RELOADED rewind ui\n')

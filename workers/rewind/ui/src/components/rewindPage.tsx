@@ -170,7 +170,7 @@ export function RewindPage({ host, ...props }: { host: Host } & PageRenderProps)
       return
     }
 
-    void host.iii.trigger('console::workspace::open', { screen: 'traces' }).catch(() => undefined)
+    void host.iii.call('ade::workspace::open', { screen: 'traces' }).catch(() => undefined)
   }, [host])
 
   const [syncOn, setSyncOn] = usePaneState<boolean>(`${paneKey}:sync-traces`, false)

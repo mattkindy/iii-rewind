@@ -1,7 +1,7 @@
 /**
- * The page's one binding to `rewind::changed`, shared by everything that
- * listens: the landing's data and a running check. A binding can be accepted
- * while nothing provides the trigger type yet, and events are lost while the
+ * The page's one observer of `rewind::changed`, shared by everything that
+ * listens: the landing's data and a running check. An observer waits while
+ * Rewind is not connected, and events are lost while the
  * tab is disconnected or asleep, so the feed also says when to catch up: when
  * the connection comes back and when the tab is shown again. The page reads
  * again at those moments instead of polling, the way the console's
@@ -55,7 +55,7 @@ export function useChangedFeed(iii: ExtensionIii): ChangedFeed {
 
     try {
       offs.push(iii.on<ChangedEvent>(HANDLER, (event) => listeners.current.forEach((listener) => listener(event))))
-      offs.push(iii.registerTrigger({ type: 'rewind::changed', function_id: `${HANDLER}::${iii.browserId}`, config: {} }))
+      offs.push(iii.observe('rewind::changed', `${HANDLER}::${iii.browserId}`))
       setLive(true)
     } catch {
       setLive(false)

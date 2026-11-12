@@ -11,12 +11,12 @@
     "shoot": "tsx dev/shoot.ts"
   },
   "devDependencies": {
-    "@iii-dev/console-ui": "0.3.0",
+    "@iii-dev/console-ui": "0.4.0",
     "@types/node": "20.19.9",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "esbuild": "0.25.12",
-    "iii-sdk": "0.25.0",
+    "iii-sdk": "0.26.0",
     "lucide-react": "1.16.0",
     "playwright-core": "1.55.1",
     "react": "19.2.8",

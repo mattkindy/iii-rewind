@@ -44,8 +44,8 @@ export type CheckOptions = { live?: boolean; copy?: string[] }
  */
 export function createRewindClient(iii: ExtensionIii) {
   const read = <T>(fn: string, payload: Record<string, unknown> = {}) =>
-    iii.trigger<T>(fn, payload, { timeoutMs: READ_TIMEOUT_MS })
-  const run = <T>(fn: string, payload: Record<string, unknown>) => iii.trigger<T>(fn, payload, { timeoutMs: RUN_TIMEOUT_MS })
+    iii.call<T>(fn, payload, { timeoutMs: READ_TIMEOUT_MS })
+  const run = <T>(fn: string, payload: Record<string, unknown>) => iii.call<T>(fn, payload, { timeoutMs: RUN_TIMEOUT_MS })
 
   return {
     status: () => read<Status>('rewind::status'),
@@ -64,7 +64,7 @@ export function createRewindClient(iii: ExtensionIii) {
     saveTest: (fork_id: string, name?: string) => read<SavedTest>('rewind::save-test', { fork_id, name: name || undefined }),
     test: (path: string) => run<TestResult>('rewind::test', { path }),
     check: (run_ids: string[], { live, copy }: CheckOptions = {}) =>
-      iii.trigger<CheckResult[]>('rewind::check', { run_ids, live, copy }, { timeoutMs: checkTimeout(run_ids.length) }),
+      iii.call<CheckResult[]>('rewind::check', { run_ids, live, copy }, { timeoutMs: checkTimeout(run_ids.length) }),
     workers: () => read<{ workers?: EngineWorker[] }>('engine::workers::list'),
     spans: (invocation_id: string) => read<FunctionSpan[]>('rewind::spans', { invocation_id }),
   }

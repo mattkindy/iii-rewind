@@ -44,13 +44,13 @@ const say = (text: string) => process.stdout.write(`${text}\n`)
 // The core has no dev controls; against it the script only drives the page.
 async function configure(payload: Record<string, unknown>): Promise<void> {
   if (!AGAINST_CORE) {
-    await iii.trigger({ function_id: 'rewind-dev::configure', payload, timeoutMs: 10_000 })
+    await iii.call({ function_id: 'rewind-dev::configure', payload, timeoutMs: 10_000 })
   }
 }
 
 async function burst(count: number): Promise<void> {
   if (!AGAINST_CORE) {
-    await iii.trigger({ function_id: 'traffic::burst', payload: { count, interval_ms: 10 }, timeoutMs: 60_000 })
+    await iii.call({ function_id: 'traffic::burst', payload: { count, interval_ms: 10 }, timeoutMs: 60_000 })
   }
 }
 
@@ -426,7 +426,7 @@ type LostRow = { run_id: string; mid_call?: boolean; recovery: { outcome: { stat
 
 /** Lost runs whose call failed with function_not_found, because its worker was already gone. */
 async function notFoundRuns(): Promise<LostRow[]> {
-  const lost = (await iii.trigger({ function_id: 'rewind::lost', payload: {}, timeoutMs: 30_000 })) as LostRow[]
+  const lost = (await iii.call({ function_id: 'rewind::lost', payload: {}, timeoutMs: 30_000 })) as LostRow[]
   return lost.filter((run) => run.mid_call === false)
 }
 
@@ -901,14 +901,14 @@ type RunRowLike = { run_id: string; status: string; output?: { status?: unknown 
  */
 async function flowCopy(page: Page, shot: Shooter): Promise<void> {
   const root = scope(page)
-  const runs = (await iii.trigger({ function_id: 'rewind::runs', payload: { filter: 'all', limit: 100 }, timeoutMs: 30_000 })) as RunRowLike[]
+  const runs = (await iii.call({ function_id: 'rewind::runs', payload: { filter: 'all', limit: 100 }, timeoutMs: 30_000 })) as RunRowLike[]
   const booked = runs.find((run) => run.status === 'success' && run.output?.status === 'booked')
   if (!booked) {
     say('  no booked run to replay with tools copied')
     return
   }
 
-  await iii.trigger({ function_id: 'rewind::replay', payload: { run_id: booked.run_id, copy: ['tools'] }, timeoutMs: RUN_WAIT_MS })
+  await iii.call({ function_id: 'rewind::replay', payload: { run_id: booked.run_id, copy: ['tools'] }, timeoutMs: RUN_WAIT_MS })
   await openLanding(page)
   await root.getByRole('button', { name: /^All [\d,]+ runs/ }).click()
   await root.getByLabel('Search runs').fill(booked.run_id.slice(0, 8))
@@ -935,9 +935,9 @@ async function flowTracesSync(page: Page, shot: Shooter): Promise<void> {
   const traces = page.locator('section[aria-label="traces"]')
   await page.goto(CONSOLE_URL)
   await settle(page, 2_000)
-  await iii.trigger({ function_id: 'console::workspace::open', payload: { screen: 'traces' }, timeoutMs: 10_000 })
+  await iii.call({ function_id: 'ade::workspace::open', payload: { screen: 'traces' }, timeoutMs: 10_000 })
   await traces.getByRole('button', { name: 'Clear all' }).click({ timeout: 10_000 }).catch(() => undefined)
-  await iii.trigger({ function_id: 'console::workspace::open', payload: { screen: 'ext:rewind' }, timeoutMs: 10_000 })
+  await iii.call({ function_id: 'ade::workspace::open', payload: { screen: 'ext:rewind' }, timeoutMs: 10_000 })
   await root.locator('.rw-landing-row').first().waitFor({ timeout: 30_000 })
   await openFailureGroup(page, /SyntaxError/)
   await callRow(page, 'model::complete').first().locator('.rw-seq-name').click()
