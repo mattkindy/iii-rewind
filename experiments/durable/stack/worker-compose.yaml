@@ -1,0 +1,77 @@
+# The stack the durable bursts run on: the app's workers from this repo, the journal and iii's
+# queue, without Rewind or the console, so a burst measures the app and the journal alone.
+# burst.ts starts it once per arm with the arm's environment and clears data/ in between.
+# It uses the same ports as the project's stack, so the two never run at once.
+startup_timeout: 300s
+stop_timeout: 10s
+
+engine:
+  url: ws://127.0.0.1:49734
+
+containers:
+  clock:
+    worker: path://../../../workers/clock
+    required: true
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  # The model runs with Rewind's preload tracing answerFor, so every model call leaves a capture
+  # in data/captures.jsonl. Observers miss a call whose caller died before it returned, and those
+  # are the calls the burst has to count.
+  model:
+    worker: path://../../../workers/model
+    start_after: [clock]
+    environment:
+      MODEL_SEED: "${MODEL_SEED:-412}"
+      REWIND_TRACE_FUNCTIONS: src/worker.ts:answerFor
+      REWIND_DURABLE: "off"
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+      run: node --import tsx --import ../rewind/preload/node/index.mjs src/worker.ts
+
+  tools:
+    worker: path://../../../workers/tools
+    start_after: [clock]
+    restart: always
+    scripts:
+      pre_run: uv venv --allow-existing --python 3.11 .venv && uv pip install --python .venv/bin/python -r requirements.txt
+      pre_run_timeout: 3m
+
+  journal:
+    worker: path://../../../workers/journal
+    start_after: [clock]
+    restart: always
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  # traffic::burst defines the queue it starts runs on.
+  queue:
+    worker: package://queue
+    version: "0.22.2"
+    restart: always
+
+  # REWIND_DURABLE=off runs agent::run as a plain function, for the rival arms. AGENT_III_URL
+  # puts the agent behind the burst's proxy, so the zombie arm can cut its connection. Compose
+  # sets III_URL itself and refuses it in environment, so the start command swaps it in.
+  agent:
+    worker: path://../../../workers/agent
+    start_after: [clock, model, tools, journal]
+    restart: always
+    environment:
+      REWIND_DURABLE: "${REWIND_DURABLE:-on}"
+      REWIND_DURABLE_METRICS: "${REWIND_DURABLE_METRICS:-}"
+      AGENT_III_URL: "${AGENT_III_URL:-}"
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+      run: sh -c 'if [ -n "$AGENT_III_URL" ]; then export III_URL="$AGENT_III_URL"; fi; exec node --import tsx --import ../rewind/preload/node/index.mjs src/worker.ts'
+
+  traffic:
+    worker: path://../../../workers/traffic
+    start_after: [agent]
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m

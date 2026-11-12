@@ -1,0 +1,7 @@
+t+  4939ms stack up with {"REWIND_DURABLE":"off","REWIND_DURABLE_METRICS":"/Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412"}
+t+  4943ms --- rival-retry: today’s code with the caller starting a stopped run over, agent killed; 40 runs, faults at [1516,6416,12469] ms, seed 7
+t+  6618ms killed agent (pid 65950) with SIGKILL
+t+ 11516ms killed agent (pid 66033) with SIGKILL
+t+ 17568ms killed agent (pid 66055) with SIGKILL
+t+ 23611ms burst done in 18668 ms {"booked":27,"errors":8,"failed":5,"paused":0,"resumed":0,"sent":40}
+t+ 27639ms summary {"runs":40,"finished":40,"never_finished":0,"paused":0,"interrupted":24,"interrupted_finished":24,"booked":27,"emails_for_booked":34,"booked_with_one_email":20,"booked_with_no_email":0,"booked_sent_twice_by_the_agents_retry":1,"booked_sent_twice_across_executions":6,"emails_for_runs_not_booked":3,"model_calls":135,"model_calls_observed":123,"model_reference":99,"model_repeats":36,"model_repeats_on_interrupted":36,"runs_without_a_reference":0,"executions":0,"fenced_writes":0,"repeat_sends_dropped":0,"journal_step_ms":{"p50":null,"p99":null,"steps":0},"journal_run_ms":{"p50":null,"p99":null,"runs":0},"steps_answered_from_the_journal":0,"agent_run_calls_observed":40,"run_elapsed_ms":{"p50":3267,"p99":8765}}

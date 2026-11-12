@@ -1,0 +1,81 @@
+t+   111ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/.tools/iii-0.26.0/iii up on 49738, pid 64894
+t+   438ms [callee] ROLE probe-callee up, pid 64896
+t+   460ms [flow] ROLE flow up, pid 64897
+t+   652ms --- 1. calm
+t+   656ms [flow] HANDLER start calm inv ea27592b-0fa4-401a-8c2a-023eabc08732
+t+   659ms [callee] STEP read calm
+t+   662ms [callee] STEP think calm
+t+   972ms [callee] STEP send calm key wf-calm:2
+t+   978ms [callee] STEP think calm
+t+  1284ms [flow] HANDLER end calm
+t+  1286ms call calm answered {"idea":"calm-msg-1","label":"calm","sent":"msg-1"}
+t+  1288ms CHECK calm: done, 1 executions, 4 attempts, 0 fenced writes; the callee ran {"read":1,"think":2,"send":1}
+t+  1289ms   calm output {"idea":"calm-msg-1","label":"calm","sent":"msg-1"}
+t+  1289ms --- 2. kill during the first think
+t+  1290ms [flow] HANDLER start kill inv ffb61a35-bfb7-4700-8dd2-f25bebf7db54
+t+  1291ms [callee] STEP read kill
+t+  1292ms [callee] STEP think kill
+t+  1795ms SIGKILL flow (pid 64897)
+t+  1804ms call kill failed {"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}
+t+  1805ms [journal] journal: worker 69a43fc4 left with 1 running workflows
+t+  3117ms [flow] ROLE flow up, pid 64903
+t+  3227ms [journal] journal: starting wf-kill again (epoch 1 was its last)
+t+  3230ms [flow] HANDLER start kill inv c45bdb2c-7743-49de-84d1-08fa497f2a34
+t+  3232ms [callee] STEP think kill
+t+  5242ms [callee] STEP send kill key wf-kill:2
+t+  5247ms [callee] STEP think kill
+t+  7254ms [flow] HANDLER end kill
+t+  7258ms CHECK kill: done, 2 executions, 5 attempts, 0 fenced writes; the callee ran {"read":1,"think":3,"send":1}
+t+  7258ms   kill output {"idea":"kill-msg-2","label":"kill","sent":"msg-2"}
+t+  7258ms --- 3. kill while the send is in flight
+t+  7260ms [flow] HANDLER start send inv 2ac909bd-2ed0-43a1-8339-f9b4c4d3be79
+t+  7261ms [callee] STEP read send
+t+  7263ms [callee] STEP think send
+t+  7571ms [callee] STEP send send key wf-send:2
+t+  7872ms SIGKILL flow (pid 64903)
+t+  7879ms call send failed {"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}
+t+  7879ms [journal] journal: worker 07f29315 left with 1 running workflows
+t+  9188ms [flow] ROLE flow up, pid 64968
+t+  9301ms [journal] journal: starting wf-send again (epoch 1 was its last)
+t+  9304ms [flow] HANDLER start send inv bf7044bc-7cd8-453b-b832-c5b7d9e8c0c7
+t+  9306ms [callee] STEP send-repeat send key wf-send:2
+t+  9308ms [callee] STEP think send
+t+  9615ms [flow] HANDLER end send
+t+  9619ms CHECK send: done, 2 executions, 5 attempts, 0 fenced writes; the callee ran {"read":1,"think":2,"send":1,"send-repeat":1}
+t+  9619ms   send output {"idea":"send-msg-3","label":"send","sent":"msg-3"}
+t+  9619ms --- 4. zombie: the connection drops during a think, the process keeps running
+t+  9619ms SIGKILL flow (pid 64968)
+t+  9951ms [flow] ROLE flow up, pid 64969
+t+ 10057ms [flow] HANDLER start zombie inv 67e662f3-9ba9-42be-809f-8148e295f6b3
+t+ 10059ms [callee] STEP read zombie
+t+ 10063ms [callee] STEP think zombie
+t+ 10063ms proxy 49736: cut every connection, refusing new ones for 1500 ms
+t+ 10064ms call zombie failed {"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}
+t+ 10064ms [journal] journal: worker 7fa949bc left with 1 running workflows
+t+ 11564ms proxy 49736: accepting again
+t+ 13120ms [journal] journal: starting wf-zombie again (epoch 1 was its last)
+t+ 13123ms [flow] HANDLER start zombie inv 23245b67-adad-4838-a7a1-a6109885a56e
+t+ 13125ms [callee] STEP think zombie
+t+ 16134ms [callee] STEP send zombie key wf-zombie:2
+t+ 16139ms [callee] STEP think zombie
+t+ 19145ms [flow] HANDLER end zombie
+t+ 40348ms CHECK zombie: done, 2 executions, 5 attempts, 1 fenced writes; the callee ran {"read":1,"think":3,"send":1}
+t+ 40348ms   zombie output {"idea":"zombie-msg-4","label":"zombie","sent":"msg-4"}
+t+ 40348ms   zombie fenced [{"at_ms":1794461002598,"epoch":1,"step":1,"write":"result"}]
+t+ 40348ms flow lines ["HANDLER start zombie inv 67e662f3-9ba9-42be-809f-8148e295f6b3","HANDLER start zombie inv 23245b67-adad-4838-a7a1-a6109885a56e","HANDLER end zombie"]
+t+ 40348ms --- 5. changed code: the flow dies, and comes back calling something else
+t+ 40349ms SIGKILL flow (pid 64969)
+t+ 40656ms [flow] ROLE flow up, pid 65090
+t+ 40762ms [flow] HANDLER start changed inv a7ead423-5250-4bf3-9a6c-a69db6f71d73
+t+ 40765ms [callee] STEP read changed
+t+ 40767ms [callee] STEP think changed
+t+ 40767ms SIGKILL flow (pid 65090)
+t+ 40770ms call changed failed {"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}
+t+ 40771ms [journal] journal: worker a674dc69 left with 1 running workflows
+t+ 41070ms [flow] ROLE flow up, pid 65091
+t+ 41176ms [journal] journal: starting wf-changed again (epoch 1 was its last)
+t+ 41181ms [flow] HANDLER start changed inv f1bf9977-c6d3-437d-8b14-7e30a08780a1
+t+ 41183ms CHECK changed: failed, 2 executions, 2 attempts, 0 fenced writes; the callee ran {"read":1,"think":1}
+t+ 41184ms   changed output {"code":"DIVERGED","message":"step 0 of wf-changed was probe::read and came back as another input"}
+t+ 41184ms journal lines ["journal: starting wf-changed again (epoch 1 was its last)"]
+t+ 41189ms [journal] journal: wf-changed ended without finishing: invocation_stopped: Invocation stopped

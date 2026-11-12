@@ -1,0 +1,16 @@
+{
+  "name": "rewind-durable-experiments",
+  "private": true,
+  "type": "module",
+  "description": "Probes of iii 0.26's queue, and the burst that kills the agent mid-run with and without the journal.",
+  "dependencies": {
+    "better-sqlite3": "12.4.1",
+    "iii-sdk": "0.26.0",
+    "tsx": "4.19.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "20.19.43",
+    "typescript": "5.9.3"
+  }
+}

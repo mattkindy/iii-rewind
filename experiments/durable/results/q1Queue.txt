@@ -1,0 +1,56 @@
+t+   116ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/.tools/iii-0.26.0/iii up on 49738, pid 64687
+t+   126ms queue worker /Users/mattkindy/.iii/compose/packages/queue-0.22.2-aarch64-apple-darwin-246eb416a9179ed0762c36fa157a37e013eae98d5f54017af21ea29260ce8263/queue started, pid 64688
+t+   443ms [consumer] ROLE consumer up, pid 64689
+t+   560ms --- 1. kill: the consumer dies 1 s into a 30 s job and is back after 2 s
+t+   564ms enqueued kill on long {"messageReceiptId":"2227f804-20a5-4606-a85c-748b8bda1ad0"}
+t+   566ms [consumer] HANDLER start kill at 1794460890418 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":30000,"label":"kill","workflow_id":"wf-kill"},"metadata":null,"invocation_id":"8eefb977-ed63-4a9a-ac18-ab5430319b40","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+  1568ms SIGKILL consumer (pid 64689)
+t+  1578ms EVENT worker_disconnected cc02314e
+t+  3862ms [consumer] ROLE consumer up, pid 64728
+t+  3863ms EVENT worker_connected 25b0fb74
+t+  3876ms EVENT worker_metadata_updated 25b0fb74
+t+  3878ms [consumer] HANDLER start kill at 1794460893730 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":30000,"label":"kill","workflow_id":"wf-kill"},"metadata":null,"invocation_id":"fff1f123-9a97-496a-8d69-50cb86da54f9","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+  3878ms CHECK kill: delivered again 2310 ms after the kill, 16 ms after the restart
+t+  3878ms CHECK kill: the redelivered job had {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":30000,"label":"kill","workflow_id":"wf-kill"},"metadata":null,"invocation_id":"fff1f123-9a97-496a-8d69-50cb86da54f9","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 33881ms [consumer] HANDLER end kill at 1794460923733 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":30000,"label":"kill","workflow_id":"wf-kill"},"metadata":null,"invocation_id":"fff1f123-9a97-496a-8d69-50cb86da54f9","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 33884ms after kill engine::queue::topic_stats {"topic":"long"} {"config":null,"consumer_count":0,"delivered":1,"depth":0,"dlq_depth":0,"failed":0}
+t+ 33885ms after kill engine::queue::topic_stats {"topic":"probe"} {"config":null,"consumer_count":0,"delivered":0,"depth":0,"dlq_depth":0,"failed":0}
+t+ 33886ms after kill engine::queue::dlq_topics {} []
+t+ 33886ms --- 2. away: the consumer dies 1 s into a job and stays away for 8 s
+t+ 33887ms enqueued away on long {"messageReceiptId":"7728a3d6-6155-43ae-9551-29d3ec0e678b"}
+t+ 33888ms [consumer] HANDLER start away at 1794460923740 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":30000,"label":"away","workflow_id":"wf-away"},"metadata":null,"invocation_id":"8cf2181c-5cad-4b8f-acdc-6fe946d29462","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 34888ms SIGKILL consumer (pid 64728)
+t+ 34895ms EVENT worker_disconnected 25b0fb74
+t+ 42892ms while the consumer is away engine::queue::topic_stats {"topic":"long"} {"config":null,"consumer_count":0,"delivered":1,"depth":0,"dlq_depth":0,"failed":0}
+t+ 42893ms while the consumer is away engine::queue::topic_stats {"topic":"probe"} {"config":null,"consumer_count":0,"delivered":0,"depth":0,"dlq_depth":0,"failed":0}
+t+ 42894ms while the consumer is away engine::queue::dlq_topics {} []
+t+ 43331ms [consumer] ROLE consumer up, pid 64775
+t+ 43332ms EVENT worker_connected a0f77335
+t+ 43346ms EVENT worker_metadata_updated a0f77335
+t+ 43348ms [consumer] HANDLER start away at 1794460933200 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":30000,"label":"away","workflow_id":"wf-away"},"metadata":null,"invocation_id":"66c3a53c-4f2c-4277-90d6-9dbc82bc4169","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 43348ms CHECK away: delivered again 8460 ms after the kill, 17 ms after the restart
+t+ 43348ms after away engine::queue::topic_stats {"topic":"long"} {"config":null,"consumer_count":0,"delivered":1,"depth":0,"dlq_depth":0,"failed":0}
+t+ 43349ms after away engine::queue::topic_stats {"topic":"probe"} {"config":null,"consumer_count":0,"delivered":0,"depth":0,"dlq_depth":0,"failed":0}
+t+ 43349ms after away engine::queue::dlq_topics {} []
+t+ 43349ms --- 3. timeout: an 8 s job on a queue with timeout_ms 2000
+t+ 43350ms enqueued slow on probe {"messageReceiptId":"b5a7efba-de28-4387-8a5d-a5199676f722"}
+t+ 43350ms [consumer] HANDLER start slow at 1794460933202 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":8000,"label":"slow","workflow_id":"wf-slow"},"metadata":null,"invocation_id":"094e4356-6cae-411f-a529-261900048b1b","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 45858ms [consumer] HANDLER start slow at 1794460935709 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":8000,"label":"slow","workflow_id":"wf-slow"},"metadata":null,"invocation_id":"4ae4c20b-d2a5-45c0-b877-3ce11e4d9980","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 48863ms [consumer] HANDLER start slow at 1794460938715 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":8000,"label":"slow","workflow_id":"wf-slow"},"metadata":null,"invocation_id":"a02b9d47-b6f1-465b-8db0-319eaa23549a","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 51352ms [consumer] HANDLER end slow at 1794460941204 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":8000,"label":"slow","workflow_id":"wf-slow"},"metadata":null,"invocation_id":"094e4356-6cae-411f-a529-261900048b1b","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 53860ms [consumer] HANDLER end slow at 1794460943712 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":8000,"label":"slow","workflow_id":"wf-slow"},"metadata":null,"invocation_id":"4ae4c20b-d2a5-45c0-b877-3ce11e4d9980","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 56867ms [consumer] HANDLER end slow at 1794460946718 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","hold_ms":8000,"label":"slow","workflow_id":"wf-slow"},"metadata":null,"invocation_id":"a02b9d47-b6f1-465b-8db0-319eaa23549a","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 63352ms CHECK timeout: the handler started 3 times and finished 3 times [0,2507,5513]
+t+ 63353ms after timeout engine::queue::topic_stats {"topic":"long"} {"config":null,"consumer_count":0,"delivered":1,"depth":0,"dlq_depth":0,"failed":0}
+t+ 63354ms after timeout engine::queue::topic_stats {"topic":"probe"} {"config":null,"consumer_count":0,"delivered":0,"depth":0,"dlq_depth":1,"failed":1}
+t+ 63354ms after timeout engine::queue::dlq_topics {} [{"broker_type":"builtin","message_count":1,"topic":"probe"}]
+t+ 63354ms --- 4. fail: a handler that always throws, max_retries 2, backoff_ms 500
+t+ 63356ms enqueued fail on probe {"messageReceiptId":"a15633b0-86c4-417a-afc3-de83c01204fe"}
+t+ 63356ms [consumer] HANDLER start fail at 1794460953208 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","label":"fail","workflow_id":"wf-fail"},"metadata":null,"invocation_id":"f3383ca6-0b36-4d77-9464-2b16831d85d1","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 63873ms [consumer] HANDLER start fail at 1794460953725 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","label":"fail","workflow_id":"wf-fail"},"metadata":null,"invocation_id":"99708fba-c882-4912-a45e-d23290fb8ce4","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 64880ms [consumer] HANDLER start fail at 1794460954732 {"payload":{"_caller_worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","label":"fail","workflow_id":"wf-fail"},"metadata":null,"invocation_id":"a6a406a6-37f6-4270-bff5-06846bdefad7","caller":{"worker_id":"176db5a4-1c3b-4a3b-ae00-d7257a447f68","worker_name":"queue"}}
+t+ 71358ms CHECK fail: the handler ran 3 times, at [0,517,1524]
+t+ 71360ms after fail engine::queue::topic_stats {"topic":"long"} {"config":null,"consumer_count":0,"delivered":1,"depth":0,"dlq_depth":0,"failed":0}
+t+ 71360ms after fail engine::queue::topic_stats {"topic":"probe"} {"config":null,"consumer_count":0,"delivered":0,"depth":0,"dlq_depth":2,"failed":2}
+t+ 71361ms after fail engine::queue::dlq_topics {} [{"broker_type":"builtin","message_count":2,"topic":"probe"}]
+t+ 71362ms dlq messages [{"error":"function call failed","failed_at":1794460933201,"id":"8a3a8c27-8247-4fad-85df-b46b615c64ec","payload":{"backoff_ms":500,"baggage":"iii.function.id=probe::job","data":{"hold_ms":8000,"label":"slow","workflow_id":"wf-slow"},"function_id":"probe::job","max_retries":2,"message_id":"b5a7efba-de28-4387-8a5d-a5199676f722","namespace":null,"priority":null,"traceparent":null},"retries":3,"size_bytes":267},{"error":"function call failed","failed_at":1794460953207,"id":"8b99a175-e012-4732-b65a-247fc9be2483","payload":{"backoff_ms":500,"baggage":"iii.function.id=probe::fail","data":{"label":"fail","workflow_id":"wf-fail"},"function_id":"probe::fail","max_retries":2,"message_id":"a15633b0-86c4-417a-afc3-de83c01204fe","namespace":null,"priority":null,"traceparent":null},"retries":3,"size_bytes":254}]

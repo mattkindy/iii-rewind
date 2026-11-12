@@ -1,0 +1,7 @@
+t+  4923ms stack up with {"REWIND_DURABLE":"on","REWIND_DURABLE_METRICS":"/Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412"}
+t+  4928ms --- queue: the journal with runs started through the queue, agent killed; 40 runs, faults at [1516,6416,12469] ms, seed 7
+t+  6602ms killed agent (pid 66237) with SIGKILL
+t+ 11491ms killed agent (pid 66282) with SIGKILL
+t+ 17563ms killed agent (pid 66305) with SIGKILL
+t+ 25174ms burst done in 20246 ms {"booked":26,"errors":8,"failed":6,"paused":0,"resumed":0,"sent":40}
+t+ 29210ms summary {"runs":40,"finished":40,"never_finished":0,"paused":0,"interrupted":17,"interrupted_finished":17,"booked":26,"emails_for_booked":29,"booked_with_one_email":23,"booked_with_no_email":0,"booked_sent_twice_by_the_agents_retry":3,"booked_sent_twice_across_executions":0,"emails_for_runs_not_booked":2,"model_calls":110,"model_calls_observed":99,"model_reference":99,"model_repeats":11,"model_repeats_on_interrupted":11,"runs_without_a_reference":0,"executions":57,"fenced_writes":0,"repeat_sends_dropped":2,"journal_step_ms":{"p50":2.67,"p99":10.72,"steps":202},"journal_run_ms":{"p50":3.31,"p99":5.93,"runs":40},"steps_answered_from_the_journal":45,"agent_run_calls_observed":40,"run_elapsed_ms":{"p50":2990,"p99":5631}}

@@ -1,0 +1,42 @@
+version: 1
+containers:
+  queue:
+    worker: package://queue
+    requested: 0.22.2
+    resolved:
+      name: queue
+      version: 0.22.2
+      type: binary
+      artifacts:
+        aarch64-apple-darwin:
+          sha256: 246eb416a9179ed0762c36fa157a37e013eae98d5f54017af21ea29260ce8263
+          url: https://api.workers.iii.dev/download/queue/0.22.2/aarch64-apple-darwin
+        aarch64-pc-windows-msvc:
+          sha256: 6393f938f2f72bc9e52ed8ea2a4a9424e10bf3ebb1c65ee7289da8b5a6964206
+          url: https://api.workers.iii.dev/download/queue/0.22.2/aarch64-pc-windows-msvc
+        aarch64-unknown-linux-gnu:
+          sha256: 0eb97866b954c3d21aadf6eac7223ba2ba33ce202a45abc21d5713072a63be60
+          url: https://api.workers.iii.dev/download/queue/0.22.2/aarch64-unknown-linux-gnu
+        armv7-unknown-linux-gnueabihf:
+          sha256: 7f60fed0e0610ec7927ad46d0d20717079f0c2763ac0a3781c0c7363ae79ac8e
+          url: https://api.workers.iii.dev/download/queue/0.22.2/armv7-unknown-linux-gnueabihf
+        x86_64-apple-darwin:
+          sha256: 5f350784b96e9ae2ddd6406a2a075312648db79e11eda89d2277e4d868941cce
+          url: https://api.workers.iii.dev/download/queue/0.22.2/x86_64-apple-darwin
+        x86_64-pc-windows-msvc:
+          sha256: 3fefaef63de237672dcdb623abbff5d960c579f3ffd6c779a2d75ef4158edf34
+          url: https://api.workers.iii.dev/download/queue/0.22.2/x86_64-pc-windows-msvc
+        x86_64-unknown-linux-gnu:
+          sha256: 502f4e05b2e0a5d512e95a5c1b023344772aba7d985a0a7417281ee3e5a33ef2
+          url: https://api.workers.iii.dev/download/queue/0.22.2/x86_64-unknown-linux-gnu
+        x86_64-unknown-linux-musl:
+          sha256: b4e988450d63561355f32793ba33cfa4beee73c09bd1810c3dc902c2971ec327
+          url: https://api.workers.iii.dev/download/queue/0.22.2/x86_64-unknown-linux-musl
+      default_config:
+        adapter:
+          config:
+            file_path: data/queue
+            save_interval_ms: 5000
+            store_method: file_based
+          name: builtin
+        subscriber_retention_ms: 30000

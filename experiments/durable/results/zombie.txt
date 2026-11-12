@@ -1,0 +1,6 @@
+t+  4948ms stack up with {"REWIND_DURABLE":"on","REWIND_DURABLE_METRICS":"/Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412","AGENT_III_URL":"ws://127.0.0.1:49736"}
+t+  4955ms --- zombie: the journal, the agent’s connection cut for 1.5 s while it keeps running; 40 runs, faults at [1629] ms, seed 7
+t+  6586ms proxy 49736: cut every connection, refusing new ones for 1500 ms
+t+  8087ms proxy 49736: accepting again
+t+ 23630ms burst done in 18675 ms {"booked":24,"errors":8,"failed":8,"paused":0,"resumed":4,"sent":40}
+t+ 58667ms summary {"runs":40,"finished":40,"never_finished":0,"paused":0,"interrupted":11,"interrupted_finished":11,"booked":24,"emails_for_booked":27,"booked_with_one_email":21,"booked_with_no_email":0,"booked_sent_twice_by_the_agents_retry":3,"booked_sent_twice_across_executions":0,"emails_for_runs_not_booked":2,"model_calls":98,"model_calls_observed":97,"model_reference":97,"model_repeats":1,"model_repeats_on_interrupted":1,"runs_without_a_reference":0,"executions":44,"fenced_writes":4,"repeat_sends_dropped":1,"journal_step_ms":{"p50":2.73,"p99":6.98,"steps":198},"journal_run_ms":{"p50":3.49,"p99":5.15,"runs":40},"steps_answered_from_the_journal":10,"agent_run_calls_observed":40,"run_elapsed_ms":{"p50":2827,"p99":6818}}
