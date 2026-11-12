@@ -1,7 +1,7 @@
 {
   "recorder": "batch",
   "at": "2026-11-12T04:00:42.188Z",
-  "engine": "/Users/mattkindy/.local/bin/iii",
+  "engine": "~/.local/bin/iii",
   "options": {
     "recorder": "batch",
     "lanes": 4,

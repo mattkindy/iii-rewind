@@ -2,7 +2,7 @@
 [OTel] Metrics initialized: interval=60000ms
 [OTel] Global fetch instrumentation enabled
 [OTel] Logs initialized: delay=100ms, batch=1
-Rewind e2e against ws://127.0.0.1:49434, outbox /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-ae6cb5a9332967843/data/outbox.jsonl
+Rewind e2e against ws://127.0.0.1:49434, outbox data/outbox.jsonl
 [OTel] Connected to engine at ws://127.0.0.1:49434/otel
 [iii] Worker registered with ID: 9a11bce8-eb23-4f5e-8ed3-8098958faa6e
   recording agent::run, calendar::find-slot, clock::now, email::send, model::complete, traffic::burst

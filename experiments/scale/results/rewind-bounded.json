@@ -1,7 +1,7 @@
 {
   "recorder": "rewind",
   "at": "2026-11-12T05:02:36.715Z",
-  "engine": "/Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a4b9ba0d52f85a593/.tools/iii-0.26.0/iii",
+  "engine": ".tools/iii-0.26.0/iii",
   "max_in_flight": "engine default",
   "options": {
     "recorder": "rewind",

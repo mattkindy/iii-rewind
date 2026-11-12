@@ -1,4 +1,4 @@
-t+  104ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-ae6cb5a9332967843/.tools/iii-0.26.0/iii up on 49834, pid 11791
+t+  104ms engine .tools/iii-0.26.0/iii up on 49834, pid 11791
 t+  461ms [owner] ROLE probe-owner up, pid 11792
 t+  586ms STATE recorder's handle fa5a213c: active 
 t+  588ms [owner] HANDLER start before inv 8c37a524-c399-4754-bd6e-58b886db2fc3 at 1794456314432

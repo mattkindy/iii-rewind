@@ -1,4 +1,4 @@
-t+  212ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-ae6cb5a9332967843/.tools/iii-0.26.0/iii up on 49834, pid 98715
+t+  212ms engine .tools/iii-0.26.0/iii up on 49834, pid 98715
 t+  371ms CALL sent, routed through the engine
 t+  378ms HANDLER start routed
 t+ 1879ms HANDLER end routed

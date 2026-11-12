@@ -1,7 +1,7 @@
 {
   "recorder": "batch",
   "at": "2026-11-12T04:08:31.362Z",
-  "engine": "/Users/mattkindy/.local/bin/iii",
+  "engine": "~/.local/bin/iii",
   "max_in_flight": "engine default",
   "options": {
     "recorder": "batch",

@@ -60,7 +60,8 @@ export async function startEngine(logName: string, configFile = 'config.yaml'): 
     await sleep(100)
   }
 
-  log(`engine ${III_BIN} up on ${ENGINE_PORT}, pid ${child.pid}`)
+  // The log is committed, so the binary's path is relative to the repo.
+  log(`engine ${path.relative(path.resolve(HERE, '../..'), III_BIN)} up on ${ENGINE_PORT}, pid ${child.pid}`)
   return {
     stop: async () => {
       child.kill('SIGTERM')

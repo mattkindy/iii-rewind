@@ -1,7 +1,7 @@
 {
   "recorder": "noop",
   "at": "2026-11-12T04:07:22.342Z",
-  "engine": "/Users/mattkindy/.local/bin/iii",
+  "engine": "~/.local/bin/iii",
   "max_in_flight": "512",
   "options": {
     "recorder": "noop",

@@ -17,7 +17,7 @@
  */
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, openSync, rmSync, writeFileSync } from 'node:fs'
-import { loadavg } from 'node:os'
+import { homedir, loadavg } from 'node:os'
 import path from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
@@ -31,6 +31,16 @@ const III_BIN = process.env.III_BIN ?? path.join(process.env.HOME ?? '', '.local
 const SQLITE_BIN = process.env.SQLITE_BIN ?? 'sqlite3'
 const PORT = 49534
 const ENGINE_URL = `ws://127.0.0.1:${PORT}`
+
+// Results are committed, so the engine's path leaves out this machine's home folder.
+function shownPath(file: string): string {
+  const inRepo = path.relative(REPO_DIR, file)
+  if (!inRepo.startsWith('..')) {
+    return inRepo
+  }
+
+  return file.replace(homedir(), '~')
+}
 
 type RecorderName = 'rewind' | 'noop' | 'batch' | 'none'
 
@@ -498,7 +508,7 @@ async function main(): Promise<void> {
   }
 
   const maxInFlight = process.env.SCALE_MAX_IN_FLIGHT ?? 'engine default'
-  const result = { recorder: options.recorder, at: new Date().toISOString(), engine: III_BIN, max_in_flight: maxInFlight, options, steps }
+  const result = { recorder: options.recorder, at: new Date().toISOString(), engine: shownPath(III_BIN), max_in_flight: maxInFlight, options, steps }
   mkdirSync(path.join(SCALE_DIR, 'results'), { recursive: true })
   writeFileSync(path.join(SCALE_DIR, 'results', `${options.label}.json`), `${JSON.stringify(result, null, 2)}\n`)
 }

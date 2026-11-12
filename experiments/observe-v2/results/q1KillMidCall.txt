@@ -1,4 +1,4 @@
-t+  113ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-ae6cb5a9332967843/.tools/iii-0.26.0/iii up on 49834, pid 96053
+t+  113ms engine .tools/iii-0.26.0/iii up on 49834, pid 96053
 t+ 1066ms [owner] ROLE probe-owner up, pid 96057
 t+ 1244ms EVENT observers-changed {"function_id":"engine::on-workers-changed","observer_id":"15b075bb-2cb7-4865-ac8a-fb8cfd64cca1","state":"active","target":"probe::record-workers-changed"}
 t+ 1252ms EVENT observers-changed {"function_id":"probe::parent","observer_id":"8f9031b2-df40-4912-92bb-28b7cee321a6","state":"active","target":"probe::record-parent"}

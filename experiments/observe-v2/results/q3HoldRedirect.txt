@@ -1,4 +1,4 @@
-t+  106ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-ae6cb5a9332967843/.tools/iii-0.26.0/iii up on 49834, pid 9012
+t+  106ms engine .tools/iii-0.26.0/iii up on 49834, pid 9012
 t+  230ms CALL pass
 t+  232ms HANDLER side effect: charged order o-pass
 t+  232ms HOOK deliver for o-pass (mode pass): handler output {"charged":true,"order":"o-pass"}, 2 observers matched

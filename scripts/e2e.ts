@@ -1241,7 +1241,7 @@ async function main(): Promise<number> {
     return 2
   }
 
-  console.log(`Rewind e2e against ${ENGINE_URL}, outbox ${OUTBOX}`)
+  console.log(`Rewind e2e against ${ENGINE_URL}, outbox ${path.relative(PROJECT_DIR, OUTBOX)}`)
   listenForChanges()
   const started = await status()
   console.log(`  recording ${started.recording.join(', ')}`)

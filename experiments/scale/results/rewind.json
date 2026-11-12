@@ -1,7 +1,7 @@
 {
   "recorder": "rewind",
   "at": "2026-11-12T04:03:20.335Z",
-  "engine": "/Users/mattkindy/.local/bin/iii",
+  "engine": "~/.local/bin/iii",
   "options": {
     "recorder": "rewind",
     "lanes": 4,
