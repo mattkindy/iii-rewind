@@ -61,9 +61,11 @@ containers:
       pre_run_timeout: 10m
 
   # The ADE at http://127.0.0.1:3133. Its /ws proxy has no auth, so it stays on localhost.
+  # It waits for the clock, whose doctor fails when the ADE's port is already taken.
   ade:
     worker: package://ade
     version: "latest"
+    start_after: [clock]
     config_override:
       http_host: 127.0.0.1
       http_port: 3133
