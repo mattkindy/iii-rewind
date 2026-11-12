@@ -227,8 +227,8 @@ Check against current code on the landing is the same view over the last 25 runs
 ## Interrupted
 
 Under the incident's heading, "12 runs interrupted · tools stopped 21:45", one line says what
-recovering does: "Replays calls that finished · runs read-only calls live · asks before the
-rest". Every Recover run button has the same line as its tooltip. Recover all has no tooltip,
+recovering does: "Replays calls that finished · runs read-only and external calls live · asks
+before the rest". Every Recover run button has the same line as its tooltip. Recover all has no tooltip,
 because the line is right above it.
 
 Recover all recovers the incident's open runs one after another, with progress such as "Recovering

@@ -70,9 +70,10 @@ one of Rewind's stubs instead of the workers above.
    [DESIGN.md](DESIGN.md#what-happens-to-in-flight-work-when-a-worker-stops) has what iii does in
    that moment, measured.
 
-   **Recover all** replays the calls that finished, runs read-only calls live, and asks you before
-   anything that writes or can't be undone. A send that was cut off mid-call may already have
-   reached the email provider, so Rewind asks whether to mark it sent or send it again.
+   **Recover all** replays the calls that finished and runs read-only and external calls, such as
+   `model::complete`, live. It asks you before anything that writes or can't be undone. A send
+   that was cut off mid-call may already have reached the email provider, so Rewind asks whether
+   to mark it sent or send it again.
 5. **Kill Rewind itself.** Leave one recovery waiting for an answer, run `npm run traffic`, and
    kill Rewind while the requests are running:
 

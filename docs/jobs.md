@@ -91,8 +91,8 @@ The flow is done when every run in the group comes back fixed and the test is sa
 
 1. The landing shows "5 runs · tools stopped 15:04" under Interrupted.
 2. Opening it lists the runs, with one line on what recovering does: it replays the calls that
-   finished, runs read-only calls live, and asks before the rest. **Recover all** recovers
-   every run, one after another.
+   finished, runs read-only and external calls live, such as the model, and asks before the rest.
+   **Recover all** recovers every run, one after another.
 3. Runs whose remaining calls are safe to run finish on their own. The rest wait at an
    irreversible call, in two groups. A send interrupted mid-call may have reached the provider, and
    nobody can tell whether it did. A send the recovery reached afterwards never went out, and

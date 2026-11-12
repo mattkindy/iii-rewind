@@ -11,7 +11,7 @@ import type { ForkSummary, FunctionRow, LostRun, RunRow } from '../client/types'
 import { clockTime, dayAndTime, plural } from './format'
 
 /** What recovering a run does, under the incident's heading and on every Recover button. */
-export const RECOVER_LINE = 'Replays calls that finished · runs read-only calls live · asks before the rest'
+export const RECOVER_LINE = 'Replays calls that finished · runs read-only and external calls live · asks before the rest'
 
 const NEAR_STOPPED =/([a-z0-9_.-]+::[a-z0-9_.:-]+?)\W{1,12}(?:failed:\s*)?(?:\w+:\s*)?(?:invocation_stopped|function_not_found)/i
 
