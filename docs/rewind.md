@@ -501,8 +501,8 @@ so its files stay out whatever `REWIND_TARGET_DIR` points at, `..` and links inc
 Reading its own database would also crash Rewind. When a process closes any descriptor of a file,
 it loses every POSIX lock it had on that file, including the ones SQLite took. After Rewind hashed
 its own `-shm` file, the next process to open the database didn't find a lock on it, decided it was
-the only connection, and truncated the file. Rewind still had the file mapped, so its next read of the
-WAL index was a SIGBUS.
+the only connection, and truncated the file. Rewind still had the file mapped, so its next read of
+the WAL index was a SIGBUS.
 
 ## Tests
 

@@ -1,0 +1,89 @@
+{
+  "recorder": "rewind",
+  "at": "2026-11-12T05:02:36.715Z",
+  "engine": "/Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a4b9ba0d52f85a593/.tools/iii-0.26.0/iii",
+  "max_in_flight": "engine default",
+  "options": {
+    "recorder": "rewind",
+    "label": "rewind-bounded",
+    "lanes": 4,
+    "seconds": 10,
+    "fanout": 9,
+    "padBytes": 512,
+    "rates": [
+      12000,
+      16000,
+      24000
+    ]
+  },
+  "steps": [
+    {
+      "target_calls_per_s": 12000,
+      "made_calls_per_s": 11990,
+      "calls_made": 119960,
+      "delivered": 118491,
+      "stored": 118491,
+      "stored_ratio": 0.9878,
+      "dropped": {
+        "OVERFLOW": 1469
+      },
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 21,
+      "run_ms_p99": 188,
+      "backlog_max": 4255,
+      "backlog_at_end": 0,
+      "catch_up_ms": 14,
+      "cpu_percent": {
+        "engine": 186,
+        "recorder": 145,
+        "app": 194
+      },
+      "recorder_rss_mb": 157,
+      "load_average": 14.2,
+      "recorder_totals": {
+        "dropped": 0,
+        "limit": 20000,
+        "waiting": 0
+      },
+      "saturated": [
+        "recorder stored under 99% of calls",
+        "engine dropped events"
+      ]
+    },
+    {
+      "target_calls_per_s": 16000,
+      "made_calls_per_s": 15983,
+      "calls_made": 159930,
+      "delivered": 79860,
+      "stored": 79860,
+      "stored_ratio": 0.4993,
+      "dropped": {
+        "OVERFLOW": 80070
+      },
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 167,
+      "run_ms_p99": 567,
+      "backlog_max": 5609,
+      "backlog_at_end": 0,
+      "catch_up_ms": 24,
+      "cpu_percent": {
+        "engine": 143,
+        "recorder": 82,
+        "app": 158
+      },
+      "recorder_rss_mb": 157,
+      "load_average": 15.5,
+      "recorder_totals": {
+        "dropped": 0,
+        "limit": 20000,
+        "waiting": 0
+      },
+      "saturated": [
+        "recorder stored under 99% of calls",
+        "engine dropped events"
+      ]
+    }
+  ]
+}
