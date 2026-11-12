@@ -31,7 +31,7 @@ function startRun(name: string): void {
     let failed = 0
     for (let step = 0; step < fanout; step++) {
       try {
-        await worker.trigger({ function_id: `scale::echo-${lane}`, payload: { step, pad: input.pad ?? '' }, timeoutMs: 60_000 })
+        await worker.call({ function_id: `scale::echo-${lane}`, payload: { step, pad: input.pad ?? '' }, timeoutMs: 60_000 })
         calls += 1
       } catch {
         failed += 1

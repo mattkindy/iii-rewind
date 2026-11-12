@@ -12,6 +12,8 @@
  *   npx tsx src/bench.ts noop --lanes 4 --seconds 10 --rates 1000,2000,4000
  * Each run writes results/<label>.json and leaves its logs and database in runs/<label>; the label
  * defaults to the recorder. SCALE_MAX_IN_FLIGHT sets max_in_flight on the noop and batch observers.
+ * III_BIN is the engine. The lanes and Rewind use iii-sdk 0.26, so it has to be an iii 0.26 binary.
+ * The noop and batch targets still build against the 0.25 Rust SDK and were measured on iii 0.25.
  */
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, openSync, rmSync, writeFileSync } from 'node:fs'
@@ -90,7 +92,7 @@ function writeEngineConfig(): void {
 const bench = registerWorker(ENGINE_URL, { workerName: 'scale-bench' })
 
 async function call<T>(functionId: string, payload: unknown = {}): Promise<T> {
-  return bench.trigger<unknown, T>({ function_id: functionId, payload, timeoutMs: 30_000 })
+  return bench.call<unknown, T>({ function_id: functionId, payload, timeoutMs: 30_000 })
 }
 
 async function waitFor(what: string, check: () => Promise<boolean>, timeoutMs = 120_000): Promise<void> {
@@ -180,6 +182,10 @@ const RECORDERS: Record<RecorderName, Recorder> = {
       })
     },
     stored: async () => rewindStored(),
+    details: async () => {
+      const status = await call<{ recorder?: { waiting: number; limit: number; dropped: number } }>('rewind::status', {})
+      return status.recorder ?? {}
+    },
   },
   noop: {
     target: 'scale::noop-record',

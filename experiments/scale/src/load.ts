@@ -43,7 +43,7 @@ async function oneRun(): Promise<void> {
   inFlight += 1
   try {
     const output = await context.with(ROOT_CONTEXT, () =>
-      worker.trigger<unknown, RunOutput>({ function_id: `scale::run-${lane}`, payload: { fanout, pad }, timeoutMs: 60_000 }),
+      worker.call<unknown, RunOutput>({ function_id: `scale::run-${lane}`, payload: { fanout, pad }, timeoutMs: 60_000 }),
     )
     tally.done += 1
     tally.calls_made += 1 + output.calls
@@ -58,8 +58,8 @@ async function oneRun(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  // The first trigger waits for the connection, so warm it up before the clock starts.
-  await worker.trigger({ function_id: 'engine::functions::list', payload: { prefix: `scale::run-${lane}` }, timeoutMs: 30_000 })
+  // The first call waits for the connection, so warm it up before the clock starts.
+  await worker.call({ function_id: 'engine::functions::list', payload: { prefix: `scale::run-${lane}` }, timeoutMs: 30_000 })
   const runs: Promise<void>[] = []
   const startedAt = performance.now()
   const endAt = startedAt + seconds * 1000
