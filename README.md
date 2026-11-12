@@ -83,8 +83,8 @@ one of Rewind's stubs instead of the workers above.
 
    The requests all finish, and compose restarts Rewind within seconds. Runs from while it was
    down are missing, and the recovery you left is still waiting.
-   [DESIGN.md](DESIGN.md#when-rewind-itself-stops) has the one case where this could send an
-   email twice.
+   [DESIGN.md](DESIGN.md#when-rewind-itself-stops) has why a send Rewind made right before it died
+   still goes out once.
 
 ## Why it's built on iii
 

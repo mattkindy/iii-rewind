@@ -20,9 +20,12 @@ The mechanics are in `docs/rewind.md`, and the experiments behind them in `docs/
 - **Replay.** Rewind starts a copy of the agent with `III_NAMESPACE=rewind-f1`. iii resolves a call
   in the caller's namespace, so every call the copy makes reaches a stub that returns the recorded
   answer.
-- **Forks.** A fork is the recording with one answer changed. When the code makes a call the
-  recording doesn't have, the fork pauses, and you run it live, type an answer, inject an error,
-  or stop. Effects decide which of those are offered.
+- **Forks.** A fork is the recording with one answer changed, and it runs to its end on its own.
+  When the code makes a call the recording doesn't have, the fork runs it live if its effects
+  allow that, and otherwise gives it the newest answer the same function returned in another run,
+  so nothing irreversible goes out. It pauses only at a function you set a stop on, or where no
+  other run has an answer. There you run the call live, type an answer, inject an error, or stop,
+  and effects decide which of those are offered.
 - **No waiting on a person.** The agent's own timeout would expire while a debugger held a call
   open, so a replay always runs to the end in milliseconds. You step through it afterwards, and
   each new answer reruns the fork from the start.
@@ -46,10 +49,12 @@ The demo kills the Python tools worker during a burst. The spike measured what i
   ones with `function_not_found` until compose restarts the worker about a second later.
 - **The work is gone.** Nothing retries a direct call, so the run fails, and the model answers
   that led to it are lost unless something recorded them.
-- **Observers miss the interrupted call.** The engine deactivates the observer before failing the
-  call, so the event is dropped as `INACTIVE`, though the docs say it should count as `CANCELLED`.
+- **Observers miss the interrupted call.** The worker that died never sent the engine its answer,
+  so no observer gets an event. On 0.26 the engine counts it as a `CANCELLED` drop on each
+  observer, which iii's Observe v2 decisions say is by design. 0.25 counted it as `INACTIVE`.
 - **The queue redelivers.** A job on a killed worker ran again on the next owner, so handlers see
-  repeats. That's why `email::send` needs an idempotency key.
+  repeats. That's why `email::send` takes an idempotency key: a send with a key it has already
+  seen returns the first send's reply, and no second invite goes out.
 - **A frozen worker is worse.** The engine never pings workers, so it keeps sending calls to a
   stopped process until each caller times out. iii's open PR #1929 (`dispatch_timeout_ms`) would
   limit part of that wait.
@@ -66,8 +71,10 @@ The app doesn't notice. Rewind is only an observer, and compose restarts it with
 
 - **Calls made while it's down aren't recorded.** The engine drops their events. HTTP that
   bypasses iii is kept, because the preloads write it to disk.
-- **One window can send an email twice.** A fork saves only when a rerun ends. If Rewind dies
-  after sending `email::send` live but before then, the next rerun sends it again.
+- **A send repeated after Rewind dies goes out once.** A recovery saves only when a rerun ends. If
+  Rewind dies after sending `email::send` live but before then, the recovery still waits at that
+  send, and a person can pick Send again. Rewind sends the same idempotency key both times, so
+  `email::send` returns the first send's reply. A function that takes no key would send twice.
 - **Forks survive.** A fork is a database record, so a paused recovery is still waiting after the
   restart.
 
@@ -258,8 +265,10 @@ Evidence for each is in `docs/spike.md`:
 - **Python inbound requests**, through WSGI and ASGI middleware.
 - **Stub from the recording.** Stubs come from the live function list, so a worker that's down
   when a fork starts gets none, even though the recording has its answers.
-- **Never resend a live call after Rewind dies.** Save a live answer as soon as it returns, and
-  mark a call before sending it, so a crash leads to a question instead of a second send.
+- **Never resend a live call after Rewind dies, even without a key.** A function that takes an
+  idempotency key already drops the repeat. For one that doesn't, save a live answer as soon as it
+  returns, and mark a call before sending it, so a crash leads to a question instead of a second
+  send.
 - **Say up front when a run can't be replayed**, because the root worker's code isn't in the
   compose file, instead of failing after the click.
 - **Copy workers from outside the project** in a container whose only route is to the engine, so
