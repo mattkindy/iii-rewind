@@ -1,7 +1,8 @@
 # Function contract
 
 What each worker registers, what it takes and returns, and the effect it declares. Rewind reads
-effects from function `metadata`, so every function sets `metadata.effects`.
+effects from function `metadata`, so every function in the sample app sets `metadata.effects`.
+The journal, listed last, keeps durable runs for the app, and its functions declare no effects.
 
 Every function in the sample app also registers `request_format` and `response_format`, which are
 JSON schemas of its input and output. They're listed under each function below. The engine stores
@@ -234,11 +235,18 @@ Response format:
 
 ### `email::send` (worker `tools`, Python)
 
-- Effects: `["irreversible"]`
+- Effects: `["irreversible"]`, with `"idempotency_key": true` in its metadata.
 - Input: `{ "to": "...", "subject": "...", "start": "..." }`
 - Output: `{ "status": "accepted", "id": "msg_<12 hex>" }`, the provider's reply.
 - POSTs the invite to the email provider at `EMAIL_URL` (default `http://127.0.0.1:49335/email`)
   with `urllib.request`, adding the run's invocation id. The provider writes the outbox.
+- A call with an `idempotency_key` in its metadata sends once per key. A repeat of a key that
+  went out returns the first send's reply, and a repeat of one that failed fails with the same
+  message. A repeat of a key whose send was cut off mid-send fails too, because nobody knows
+  whether that invite went out. The keys are in `data/email-sends.sqlite`, so they outlast a
+  restart of the tools. A durable run's step sends `<workflow id>:<step>` as its key, and a live
+  send from Rewind sends `rewind:<run id>:<place>:<hash of the input>`. A call without a key
+  always sends.
 - About 1 in 10 sends is slow at the provider, 2.5 s. That triggers bug 3.
 
 Request format:
@@ -272,8 +280,16 @@ Response format:
 
 ### `agent::run` (worker `agent`, TypeScript)
 
-- Effects: `["writes"]`
-- Input: `{ "request": "Book 30 minutes with Dana next Tuesday afternoon", "user": "matt" }`
+- Effects: `["writes"]`, with `"durable": true` in its metadata. Rewind's Node preload keeps a
+  journal of each run in the journal worker, and a run the agent died under starts again on the
+  agent compose brings back ([durable-execution.md](durable-execution.md)).
+- Input: `{ "request": "Book 30 minutes with Dana next Tuesday afternoon", "user": "matt" }`, and
+  three optional fields:
+  - `approval: true` makes the run wait for a person to approve each invite before it goes out.
+  - `approval_timeout_ms` says how long it waits for that approval, 30 minutes by default.
+  - `_workflow_id` is the run's id in the journal, such as `burst-1a2b3c4d-7`. A caller that
+    starts the same run again sends the same id, and a run that comes without one gets
+    `wf-<invocation id>`. The preload takes the field out before the agent's code sees the input.
 - Loop:
   1. Call `clock::now` once.
   2. Call `model::complete`.
@@ -285,9 +301,18 @@ Response format:
      `HOLIDAYS_URL` (default `http://127.0.0.1:49335`). If the day is a holiday, the agent skips
      the call and appends the tool message `{ "error": "2026-11-11 is a US holiday (Veterans Day)" }`,
      so the model replies with `status: "failed"`. A fetch that fails is a tool error the same way.
+  6. With `approval`, before it calls `email::send`, call `durable::wait` with the name
+     `approval`, the timeout, the invite as `detail: { function_id: "email::send", input }`, and
+     two choices: Approve, `{ "approved": true }`, and Decline, `{ "approved": false }`. The run
+     parks there until someone resolves the wait. An approval sends the invite. A decline or the timeout sends nothing and gives the model the tool error
+     "the invite was not approved" or "nobody approved the invite in time". A wait's name gets one
+     value per run, so one answer covers every send in the run.
 - Calls `email::send` with `timeoutMs: 1500` and retries once on `TIMEOUT` (bug 3). Other calls
   use a 30 s timeout.
-- Output: `{ "status": "booked" | "failed", "reply": "...", "turns": n }`
+- Output: `{ "status": "booked" | "failed", "reply": "...", "turns": n }`. A run that parks at a
+  wait returns `{ "pending": true, "workflow_id": "...", "waiting_for": { ... } }` instead, and
+  `journal::wait` returns its output once it finishes. The response format leaves that shape out,
+  since every durable function can return it.
 
 Request format:
 
@@ -299,7 +324,18 @@ Request format:
       "type": "string",
       "description": "What to book, in plain English, such as \"Book 30 minutes with Dana next Tuesday afternoon\""
     },
-    "user": { "type": "string", "description": "Who is asking" }
+    "user": { "type": "string", "description": "Who is asking" },
+    "approval": {
+      "type": "boolean",
+      "default": false,
+      "description": "Wait for a person to approve each invite before it goes out. Until then the run returns { pending: true }, and journal::resolve with name \"approval\" and { approved: true } lets it go on"
+    },
+    "approval_timeout_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 1800000,
+      "description": "How long to wait for the approval before the run goes on without sending"
+    }
   },
   "required": ["request"]
 }
@@ -322,13 +358,28 @@ Response format:
 ### `traffic::burst` (worker `traffic`, TypeScript)
 
 - Effects: `["writes"]`
-- Input: `{ "count": 20, "interval_ms": 400 }`. Both are optional.
-- Builds requests from a fixed list of attendees, durations and weekdays, and calls `agent::run`
+- Input: every field is optional, and these are the defaults:
+  `{ "count": 20, "interval_ms": 400, "start": "call", "retry": false, "approval": false, "detail": false }`
+- Builds requests from a fixed list of attendees, durations and weekdays, and starts `agent::run`
   for each without waiting for the previous one to finish. Errors are counted, not thrown.
+- Gives each run a workflow id, `burst-<8 hex>-<index>`, as `_workflow_id` in its input. When the
+  journal is running and a run's call stops with `invocation_stopped`, `function_not_found` or
+  `TIMEOUT`, the burst waits for the run in `journal::wait`, for up to 3 minutes, while it finishes
+  on a restarted agent. Such a run counts as resumed.
+- `start: "queue"` sends each run as a job on the `agent-runs` queue, which the burst defines,
+  instead of calling `agent::run`. The queue delivers a job again when the agent dies under it, and
+  the burst waits for each run in the journal.
+- `retry: true` calls a run again with the same workflow id when its call stops and the journal
+  never saw it, for up to 30 seconds, which covers a run sent while the agent was down.
+- `approval: true` starts every run with `approval: true`. A run that parks returns
+  `{ pending: true }`, and the burst counts it as waiting.
+- `detail: true` also returns each run, with its workflow id, request, outcome, how many times it
+  was started, whether it resumed, how long it took, and its output or error.
 - Calls `agent::run` from the root OpenTelemetry context, so each run is the root of a trace of
   its own, the way a request from outside would arrive. The agent passes its trace on to every
   call it makes.
-- Output: `{ "sent": 20, "booked": 14, "failed": 4, "errors": 2 }`
+- Output: `{ "sent": 20, "booked": 14, "failed": 4, "errors": 2, "waiting": 0, "resumed": 0 }`,
+  with `runs` when `detail` is true.
 
 Request format:
 
@@ -342,7 +393,24 @@ Request format:
       "minimum": 0,
       "default": 400,
       "description": "How long to wait between sending one request and the next, in milliseconds"
-    }
+    },
+    "start": {
+      "type": "string",
+      "enum": ["call", "queue"],
+      "default": "call",
+      "description": "How each run starts: a call to agent::run, or a job on the agent-runs queue, which delivers it again if the agent dies"
+    },
+    "retry": {
+      "type": "boolean",
+      "default": false,
+      "description": "Call a run again, with the same workflow id, when its call stops and the journal never saw it"
+    },
+    "approval": {
+      "type": "boolean",
+      "default": false,
+      "description": "Start each run with approval: true, so each invite waits for a person, and count those runs as waiting"
+    },
+    "detail": { "type": "boolean", "default": false, "description": "Also return each run with its workflow id and outcome" }
   }
 }
 ```
@@ -356,8 +424,54 @@ Response format:
     "sent": { "type": "integer", "minimum": 0, "description": "How many requests were sent" },
     "booked": { "type": "integer", "minimum": 0, "description": "Runs that replied with status booked" },
     "failed": { "type": "integer", "minimum": 0, "description": "Runs that replied with status failed" },
-    "errors": { "type": "integer", "minimum": 0, "description": "Runs that threw instead of replying" }
+    "errors": { "type": "integer", "minimum": 0, "description": "Runs that threw, or stopped and never finished" },
+    "waiting": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Durable runs waiting on a pending step: a wait for a value, a sleep, or a call a crash cut off that a person has to decide about"
+    },
+    "resumed": { "type": "integer", "minimum": 0, "description": "Runs whose call stopped and that finished on a restarted agent" },
+    "runs": { "type": "array", "description": "Each run, when detail is true", "items": { "type": "object" } }
   },
-  "required": ["sent", "booked", "failed", "errors"]
+  "required": ["sent", "booked", "failed", "errors", "waiting", "resumed"]
 }
 ```
+
+## Journal (worker `journal`, TypeScript)
+
+The journal keeps the app's durable runs, such as `agent::run`, in `data/journal.sqlite`. Rewind's
+Node preload calls it from inside a durable run, and Rewind's page calls `journal::list`,
+`journal::resolve` and `journal::wait`. Its `journal::*` functions are internal and register no
+effects or formats, so Rewind neither records nor lists them. A write the journal refuses comes
+back as `{ rejected, message }`, with `rejected` one of `FENCED`, `DIVERGED`, `UNKNOWN_WORKFLOW` or
+`WAITING`, instead of as an error. [durable-execution.md](durable-execution.md) has how a run uses
+each one.
+
+| Function | Input | Output |
+| --- | --- | --- |
+| `journal::begin` | `{ workflow_id, function_id, input, input_hash, started_by }` | `{ status: "running", epoch, steps }` for a run that starts or starts again, or `{ status, output }`, `{ status, error }` or `{ status, pending }` for one that finished, failed or waits |
+| `journal::intent` | `{ workflow_id, epoch, step, function_id, input_hash }`, before the step's call goes out | `{ idempotency_key, outcome? }`, with a key when the callee is irreversible and the saved outcome when the step already has one |
+| `journal::result` | `{ workflow_id, epoch, step, outcome }`, with `outcome` either `{ ok: true, value }` or `{ ok: false, error }` | `{ saved: true }` |
+| `journal::park` | `{ workflow_id, epoch, step, function_id, input_hash, park }`, with `park` either `{ kind: "wait", name, timeout_ms?, detail?, choices? }` or `{ kind: "sleep", ms }` | `{ outcome }` when the step has its result already, or `{ pending }` with the run left waiting |
+| `journal::resolve` | `{ workflow_id, name?, step?, value?, error?, action? }`: a wait by its name, or any pending step by its number. `action: "execute"` sends a call a crash cut off again | `{ resolved, resumed, step?, reason? }` |
+| `journal::finish` | `{ workflow_id, epoch, outcome }` | `{ saved: true }` |
+| `journal::wait` | `{ workflow_id, timeout_ms? }`, waiting at most 60 s | the run once it finishes, fails or starts waiting, or as it is when the time runs out, or `null` for a run the journal doesn't have |
+| `journal::get` | `{ workflow_id }` | the run with its steps, executions, every attempt at each step, the values its waits got and the writes it fenced, or `null` |
+| `journal::list` | `{ status? }`, one of `running`, `waiting`, `done` or `failed` | every run, oldest first, a waiting one with its `pending` step |
+| `journal::on-workers-changed` | what `engine::on-workers-changed` reports, which the journal observes | `null`. A disconnect clears that worker as the owner of its running runs and starts the sweep that calls them again |
+
+### `durable::wait` and `durable::sleep` (worker `journal`)
+
+Inside a durable run, the preload turns these two calls into steps of the run and never sends
+them:
+
+- `durable::wait` with `{ name, timeout_ms?, detail?, choices? }` parks the run until someone
+  resolves the wait with `journal::resolve`. It returns `{ timed_out: false, value }` with the value
+  that resolved it, or `{ timed_out: true }` when `timeout_ms` passes first. `detail` and
+  `choices`, a list of `{ label, value }`, are for the person who resolves it.
+- `durable::sleep` with `{ ms }` parks the run until that time has passed, and returns
+  `{ slept_ms }`.
+
+The journal registers both as well, with no effects, and not as internal, so the engine lists them
+and Rewind stubs them in its copies. A call that reaches the journal came from outside a durable
+run, and fails at once with an error saying they only work inside one.
