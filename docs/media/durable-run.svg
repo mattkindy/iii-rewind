@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 400" width="780" height="400" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <title>A durable agent run and its journal</title>
+  <desc>traffic starts agent::run with a workflow id, directly or through iii's queue. Rewind's preload in the agent writes begin, intent, result and finish to the journal worker around every call the run makes to its callees. email::send gets an idempotency key. When the agent disconnects, the journal's recovery starts the run again on the agent that is up, and a write from the old epoch is refused.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3b4252"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="780" height="400" fill="#ffffff"/>
+
+  <rect x="20" y="40" width="150" height="62" rx="8" fill="#eef2f7" stroke="#3b4252"/>
+  <text x="95" y="66" text-anchor="middle" font-weight="bold" fill="#1f2430">traffic::burst</text>
+  <text x="95" y="86" text-anchor="middle" fill="#1f2430">gives each run an id</text>
+
+  <rect x="20" y="170" width="150" height="62" rx="8" fill="#ffffff" stroke="#3b4252" stroke-dasharray="5 4"/>
+  <text x="95" y="196" text-anchor="middle" font-weight="bold" fill="#1f2430">iii queue</text>
+  <text x="95" y="216" text-anchor="middle" fill="#1f2430">optional start path</text>
+
+  <rect x="250" y="40" width="240" height="160" rx="8" fill="#eef2f7" stroke="#3b4252"/>
+  <text x="370" y="64" text-anchor="middle" font-weight="bold" fill="#1f2430">agent worker</text>
+  <rect x="266" y="76" width="208" height="40" rx="6" fill="#ffffff" stroke="#3b4252"/>
+  <text x="370" y="101" text-anchor="middle" fill="#1f2430">agent::run, durable: true</text>
+  <rect x="266" y="128" width="208" height="58" rx="6" fill="#fdf3e1" stroke="#a36a00"/>
+  <text x="370" y="151" text-anchor="middle" fill="#1f2430">Rewind's preload: each call</text>
+  <text x="370" y="171" text-anchor="middle" fill="#1f2430">is a step, numbered in order</text>
+
+  <rect x="580" y="40" width="180" height="160" rx="8" fill="#eef2f7" stroke="#3b4252"/>
+  <text x="670" y="64" text-anchor="middle" font-weight="bold" fill="#1f2430">callees</text>
+  <text x="670" y="94" text-anchor="middle" fill="#1f2430">clock::now, read-only</text>
+  <text x="670" y="120" text-anchor="middle" fill="#1f2430">model::complete, external</text>
+  <text x="670" y="146" text-anchor="middle" fill="#1f2430">email::send, irreversible,</text>
+  <text x="670" y="164" text-anchor="middle" fill="#1f2430">drops a repeat key</text>
+
+  <rect x="250" y="280" width="240" height="96" rx="8" fill="#e6f2ea" stroke="#2f6b43"/>
+  <text x="370" y="304" text-anchor="middle" font-weight="bold" fill="#1f2430">journal worker</text>
+  <text x="370" y="326" text-anchor="middle" fill="#1f2430">SQLite: runs, epochs, steps</text>
+  <text x="370" y="346" text-anchor="middle" fill="#1f2430">recovery: starts a run again</text>
+  <text x="370" y="364" text-anchor="middle" fill="#1f2430">when its worker leaves</text>
+
+  <line x1="170" y1="71" x2="248" y2="88" stroke="#3b4252" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="178" y="58" fill="#1f2430" font-size="12">1 agent::run</text>
+  <line x1="95" y1="102" x2="95" y2="168" stroke="#3b4252" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="102" y="140" fill="#1f2430" font-size="12">or enqueue</text>
+  <line x1="170" y1="200" x2="264" y2="114" stroke="#3b4252" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+
+  <line x1="490" y1="142" x2="578" y2="142" stroke="#3b4252" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="498" y="134" fill="#1f2430" font-size="12">3 the call</text>
+  <line x1="578" y1="176" x2="490" y2="176" stroke="#3b4252" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="500" y="166" fill="#1f2430" font-size="12">its result</text>
+
+  <line x1="340" y1="200" x2="340" y2="278" stroke="#2f6b43" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="200" y="232" fill="#1f2430" font-size="12">2 begin, then intent</text>
+  <text x="200" y="250" fill="#1f2430" font-size="12">4 result, last finish</text>
+  <line x1="400" y1="278" x2="400" y2="202" stroke="#2f6b43" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="408" y="232" fill="#1f2430" font-size="12">epoch, saved results,</text>
+  <text x="408" y="250" fill="#1f2430" font-size="12">or FENCED</text>
+
+  <path d="M490,330 L540,330 L540,220 L470,220 L470,203" fill="none" stroke="#2f6b43" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="552" y="262" fill="#1f2430" font-size="12">5 after a crash: agent::run</text>
+  <text x="552" y="280" fill="#1f2430" font-size="12">again, same workflow id</text>
+
+  <path d="M95,232 L95,330 L248,330" fill="none" stroke="#3b4252" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="102" y="322" fill="#1f2430" font-size="12">journal::wait</text>
+
+  <text x="20" y="24" fill="#4c566a" font-size="12">Every arrow is an iii call through the one engine, which the diagram leaves out.</text>
+</svg>

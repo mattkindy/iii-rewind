@@ -21,7 +21,7 @@ iii compose --up
 ```
 
 That's the one command. It checks the machine first and stops with a list of anything missing,
-then installs every worker's dependencies, builds Rewind, and starts the engine with seven workers.
+then installs every worker's dependencies, builds Rewind, and starts the engine with nine workers.
 The first start compiles Rewind, which takes a few minutes; later starts take seconds.
 
 Open http://127.0.0.1:3133 and choose **Rewind** in the navigation. To give it something to show,
@@ -132,9 +132,11 @@ and the page, and what each check covers, are in [docs/testing.md](docs/testing.
 | `workers/clock` | `clock::now`, plus the fake holidays API and email provider (TypeScript) |
 | `workers/tools` | `calendar::find-slot` and `email::send` (Python) |
 | `workers/traffic` | `traffic::burst`, which sends the agent requests (TypeScript) |
+| `workers/journal` | The journal that makes `agent::run` durable, and the recovery that starts an interrupted run again (TypeScript) |
 | `workers/rewind` | Rewind itself (Rust), with its page for iii's console (TypeScript) |
 | `workers/rewind/preload` | The preloads that record calls around iii (Node and Python) |
 | `docs/rewind.md` | How Rewind works, and every function its page calls |
 | `docs/spike.md` | What iii 0.25.0 does, measured before building |
 | `docs/spike-0.26.md` | What iii 0.26.0's observers change for Rewind, measured |
 | `docs/multi-engine.md` | What still works when the tools run on a second engine |
+| `docs/durable-execution.md` | How an agent run survives the agent dying mid-run, measured with `npm run kill-agent` |
