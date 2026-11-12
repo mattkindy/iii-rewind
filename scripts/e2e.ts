@@ -6,8 +6,8 @@
  * run of its own, finds a run by a call's id, forks
  * and tests the SyntaxError run, forks it again with auto on and with a stop,
  * checks every SyntaxError run against the code
- * in docs/demo-fix.patch with and without live calls, and kills the tools
- * worker to recover a lost run.
+ * in docs/demo-fix.patch with and without live calls, kills the tools worker
+ * to recover a lost run, and approves and declines runs that wait for approval.
  *
  * Run from the repo root, after `npm --prefix scripts install`:
  *   npx tsx scripts/e2e.ts
@@ -1235,6 +1235,86 @@ async function killAndRecover(): Promise<void> {
   check('recovering wrote nothing to the outbox', outboxLines() === outboxBefore)
 }
 
+type Pending = { step: number; kind: string; name?: string; detail?: { function_id?: string } }
+type Parked = { pending?: true; workflow_id?: string; waiting_for?: Pending }
+type JournalRun = { status: string; output?: AgentOutput; pending?: Pending; executions?: unknown[]; steps?: { function_id: string }[] }
+type Resolution = { resolved: boolean; resumed: boolean; reason?: string }
+
+const APPROVAL_PEOPLE = ['Dana next Tuesday', 'Priya next Wednesday', 'Marcus next Thursday', 'Lena next Monday', 'Omar next Friday', 'Sofia next Tuesday']
+
+/** An agent::run with approval that parked at its wait, trying other requests when the fake model fails one first (bug 1). */
+async function parkedForApproval(label: string): Promise<{ workflowId: string; parked: Parked } | undefined> {
+  for (const [index, who] of APPROVAL_PEOPLE.entries()) {
+    const workflowId = `e2e-${label}-${Date.now()}-${index}`
+    const payload = { request: `Book 30 minutes with ${who} afternoon`, approval: true, _workflow_id: workflowId }
+    const parked = await call<Parked>('agent::run', payload).catch(() => ({}) as Parked)
+    if (parked.pending) {
+      return { workflowId, parked }
+    }
+  }
+
+  return undefined
+}
+
+async function settledInJournal(workflowId: string): Promise<JournalRun | null> {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const found = await call<JournalRun | null>('journal::wait', { workflow_id: workflowId, timeout_ms: 10_000 }, 15_000)
+    if (found && found.status !== 'running') {
+      return found
+    }
+  }
+
+  return null
+}
+
+/** A run that waits for approval parks without sending, goes on once approved, and sends its invite then. */
+async function approvedRun(): Promise<void> {
+  const outside = await call('durable::wait', { name: 'approval' }).then(
+    () => 'it returned',
+    (error: { message?: string }) => error.message ?? '',
+  )
+  check('durable::wait called outside a durable run fails at once and says so', /only works inside a durable run/.test(outside), outside)
+
+  const approved = await parkedForApproval('approve')
+  if (!check('agent::run with approval returns pending at a wait named approval, about email::send', approved?.parked.waiting_for?.name === 'approval' && approved.parked.waiting_for.detail?.function_id === 'email::send')) {
+    return
+  }
+
+  const { workflowId } = approved!
+  const listed = await call<{ workflow_id: string }[]>('journal::list', { status: 'waiting' })
+  await sleep(SLOW_SEND_SETTLE_MS)
+  const outboxBefore = outboxLines()
+  const resolution = await call<Resolution>('journal::resolve', { workflow_id: workflowId, name: 'approval', value: { approved: true } })
+  const settled = await settledInJournal(workflowId)
+  const again = await call<Resolution>('journal::resolve', { workflow_id: workflowId, name: 'approval', value: { approved: false } })
+  console.log(`    ${workflowId}: resolve ${JSON.stringify(resolution)}, then ${settled?.status} ${JSON.stringify(settled?.output)}; a second resolve ${JSON.stringify(again)}`)
+  check(
+    'the journal lists the run waiting, resolving it starts it again, it finishes booked, and a second resolve returns resolved: false',
+    listed.some((run) => run.workflow_id === workflowId) && resolution.resumed && settled?.status === 'done' && settled.output?.status === 'booked' && !again.resolved,
+  )
+  await sleep(SLOW_SEND_SETTLE_MS)
+  const detail = await call<JournalRun>('journal::get', { workflow_id: workflowId })
+  const sendSteps = detail.steps?.filter((step) => step.function_id === 'email::send').length ?? 0
+  check(
+    'the approved run sent nothing while it waited and one invite per email::send step once approved',
+    sendSteps >= 1 && outboxLines() - outboxBefore === sendSteps,
+    `${outboxLines() - outboxBefore} new outbox lines, ${sendSteps} email::send steps`,
+  )
+
+  const declined = await parkedForApproval('decline')
+  if (!declined) {
+    check('a declined run replies failed and sends nothing', false, 'no run parked')
+    return
+  }
+
+  const declinedBefore = outboxLines()
+  await call<Resolution>('journal::resolve', { workflow_id: declined.workflowId, name: 'approval', value: { approved: false } })
+  const declinedRun = await settledInJournal(declined.workflowId)
+  await sleep(SLOW_SEND_SETTLE_MS)
+  console.log(`    ${declined.workflowId}: declined, then ${declinedRun?.status} ${JSON.stringify(declinedRun?.output)}`)
+  check('a declined run replies failed and sends nothing', declinedRun?.output?.status === 'failed' && outboxLines() === declinedBefore)
+}
+
 async function main(): Promise<number> {
   if (!agentIsUnchanged()) {
     console.error(`e2e: ${AGENT_DIR} has uncommitted changes, and the e2e patches it. Commit or revert them first.`)
@@ -1310,6 +1390,9 @@ async function main(): Promise<number> {
 
   console.log('10. Kill the tools worker during a burst and recover a stopped run')
   await killAndRecover()
+
+  console.log('11. Start runs that wait for approval, approve one and decline one')
+  await approvedRun()
 
   const failed = results.filter((r) => !r.ok)
   console.log(`\n${results.length - failed.length} of ${results.length} checks passed`)
