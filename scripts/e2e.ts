@@ -1014,9 +1014,15 @@ async function checkLive(runIds: string[], patched: CodeVersion): Promise<void> 
   )
 }
 
+// A run that waits for approval stops at its wait in a check, since no recording has the wait's
+// value, so the checks of the fix leave out the ones an earlier walk's approval runs left behind.
+function waitsForApproval(run: RunSummary): boolean {
+  return (run.input as { approval?: unknown }).approval === true
+}
+
 async function checkFix(syntax: RunDetail): Promise<void> {
   const runIds = (await call<RunSummary[]>('rewind::runs', { filter: 'failed', limit: 500 }))
-    .filter(isSyntaxError)
+    .filter((run) => isSyntaxError(run) && !waitsForApproval(run))
     .map((run) => run.run_id)
   const details = new Map<string, RunDetail>()
   for (const runId of runIds) {
