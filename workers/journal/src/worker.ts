@@ -9,7 +9,7 @@
  * record them. Every write comes back as `{ rejected, message }` instead of an error when the
  * journal refuses it, because the SDK turns a thrown error into `invocation_failed`.
  *
- * Run: III_URL=ws://127.0.0.1:49734 node --import tsx src/worker.ts
+ * Run: III_URL=ws://127.0.0.1:49334 node --import tsx src/worker.ts
  */
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
@@ -18,7 +18,7 @@ import { callees } from './callees.js'
 import { startRecovery } from './recovery.js'
 import { type Begin, Journal, type Outcome, type Status } from './store.js'
 
-const ENGINE_URL = process.env.III_URL ?? 'ws://127.0.0.1:49734'
+const ENGINE_URL = process.env.III_URL ?? 'ws://127.0.0.1:49334'
 const PROJECT_DIR = process.env.III_COMPOSE_DIR ?? path.resolve(process.cwd(), '..', '..')
 const JOURNAL_FILE = process.env.JOURNAL_FILE ?? path.join(PROJECT_DIR, 'data', 'journal.sqlite')
 const MAX_WAIT_MS = 60_000
