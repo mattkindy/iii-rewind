@@ -1,7 +1,8 @@
 /**
  * Which functions Rewind records, switched on and off per function. The menu
  * stays open across toggles so several can change at once, and its rows keep
- * their places while it is open.
+ * their places while it is open. When Rewind has dropped calls because its
+ * writer fell behind, the button gets a dot and the menu says how many.
  */
 import {
   DropdownMenu,
@@ -10,24 +11,29 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
   IconButton,
+  StatusDot,
 } from '@iii-dev/console-ui'
 import { errorMessage } from '@iii-dev/console-ui/format'
 import { Radio } from 'lucide-react'
 import { useState } from 'react'
 import type { RewindClient } from '../client/rewindClient'
-import type { FunctionRow } from '../client/types'
+import type { FunctionRow, RecorderBacklog } from '../client/types'
+import { droppedCalls } from '../model/format'
 
 export function RecordingMenu({
   client,
   functions,
   recording,
+  backlog,
   onChanged,
 }: {
   client: RewindClient
   functions: FunctionRow[]
   recording: number
+  backlog?: RecorderBacklog
   onChanged: () => void
 }) {
+  const dropped = droppedCalls(backlog)
   const [error, setError] = useState<string | null>(null)
   // Recording functions come first, in the order they had when the menu opened, so a toggle never moves the row under the pointer.
   const [order, setOrder] = useState<string[]>([])
@@ -51,14 +57,16 @@ export function RecordingMenu({
   return (
     <DropdownMenu onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
-        <IconButton label="Choose what Rewind records" tooltip={false}>
+        <IconButton label={dropped ? `Choose what Rewind records. ${dropped}` : 'Choose what Rewind records'} tooltip={false} className="rw-recording-button">
           <Radio aria-hidden />
+          {dropped ? <StatusDot tone="warn" className="rw-recording-dot" aria-hidden /> : null}
         </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="rw-menu">
         <DropdownMenuLabel>
           Recording {recording}/{functions.length} functions
         </DropdownMenuLabel>
+        {dropped ? <p className="rw-menu-warning">{dropped}</p> : null}
         {rows.map((row) => (
           <DropdownMenuCheckboxItem
             key={row.function_id}

@@ -7,6 +7,7 @@
  * shows, and the page shows it on its own.
  */
 import { formatDuration, formatRelative } from '@iii-dev/console-ui/format'
+import type { RecorderBacklog } from '../client/types'
 
 /** `6h ago`, or `just now`. */
 export function ago(ms: number): string {
@@ -93,4 +94,14 @@ export function errorDetail(message: string): string {
 
 export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`
+}
+
+/** What the recording menu says when Rewind dropped calls, or null when it dropped none. */
+export function droppedCalls(backlog: RecorderBacklog | undefined): string | null {
+  if (!backlog || backlog.dropped === 0) {
+    return null
+  }
+
+  const dropped = backlog.dropped === 1 ? '1 call' : `${backlog.dropped.toLocaleString('en-US')} calls`
+  return `Rewind dropped ${dropped} since it started, because ${backlog.limit.toLocaleString('en-US')} were already waiting to be stored.`
 }

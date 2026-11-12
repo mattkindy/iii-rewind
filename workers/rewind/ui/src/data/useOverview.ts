@@ -256,6 +256,7 @@ export function useOverview(feed: ChangedFeed, client: RewindClient) {
       fork: () => soon('lost', () => void refreshLost()),
       code: () => void refreshStatus(),
       check: () => undefined,
+      recorder: () => void refreshStatus(),
     }
     handlers[event?.kind]?.()
   }

@@ -75,6 +75,23 @@
   color: var(--color-alert-strong);
 }
 
+[data-iii-ui="rewind"] .rw-menu-warning {
+  max-width: 320px;
+  margin: 2px 8px 6px;
+  font-size: 12px;
+  color: var(--color-warn-strong);
+}
+
+[data-iii-ui="rewind"] .rw-recording-button {
+  position: relative;
+}
+
+[data-iii-ui="rewind"] .rw-recording-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
 /* ── every level ─────────────────────────────────────────────────────── */
 
 [data-iii-ui="rewind"] .rw-main {

@@ -238,7 +238,15 @@ export type Status = {
   forks: number
   /** The code on disk now. A core that sends it also has `rewind::check`. */
   target_code?: CodeVersion | null
+  /** How far behind Rewind's writer is. An older core sends nothing. */
+  recorder?: RecorderBacklog
 }
+
+/**
+ * Calls waiting for Rewind's writer, how many may wait, and how many Rewind dropped since it
+ * started because that many were already waiting.
+ */
+export type RecorderBacklog = { waiting: number; limit: number; dropped: number }
 
 /** A call in a run, by its place. */
 export type CallAt = { seq: number; path?: CallPath; function_id: string }
@@ -335,7 +343,8 @@ export type TestResult = { pass: boolean; expected: unknown; outcome: unknown }
  * fires once per run as `rewind::check` finishes it, with the run id and the
  * result.
  */
-export type ChangedEvent = { kind: 'run' | 'fork' | 'lost' | 'code' | 'check'; id: string; trace_id?: string | null; check?: CheckResult }
+/** `recorder` means Rewind dropped calls, and its id is how many since Rewind started. */
+export type ChangedEvent = { kind: 'run' | 'fork' | 'lost' | 'code' | 'check' | 'recorder'; id: string; trace_id?: string | null; check?: CheckResult }
 
 /** The error a stopped fork comes back with. */
 export const STOPPED_FORK_CODE = 'REWIND_STOPPED'

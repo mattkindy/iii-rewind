@@ -393,7 +393,15 @@ export function RewindPage({ host, ...props }: { host: Host } & PageRenderProps)
         actions={
           <>
             <LiveIndicator live={overview.live} />
-            {data ? <RecordingMenu client={client} functions={data.functions} recording={data.status.recording.length} onChanged={overview.refresh} /> : null}
+            {data ? (
+              <RecordingMenu
+                client={client}
+                functions={data.functions}
+                recording={data.status.recording.length}
+                backlog={data.status.recorder}
+                onChanged={overview.refresh}
+              />
+            ) : null}
             {sync.available ? (
               <IconButton
                 label={syncOn ? 'Stop syncing with Traces' : 'Sync with Traces'}

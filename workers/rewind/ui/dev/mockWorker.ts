@@ -11,8 +11,8 @@
  *   III_URL=ws://127.0.0.1:49634 npx tsx dev/mockWorker.ts
  * MOCK_EMPTY=1 starts with no runs. rewind-dev::configure sets a delay, a
  * failure or an empty list at runtime, makes the next few rewind::answer
- * calls fail, reports some functions with no effects, and resets the state,
- * for screenshots.
+ * calls fail, reports some functions with no effects, says the writer
+ * dropped calls, and resets the state, for screenshots.
  */
 import { readFileSync, watch } from 'node:fs'
 import path from 'node:path'
@@ -87,10 +87,13 @@ const ASSETS: { path: string; file: string; kind: 'style' | 'script'; contentTyp
 // Reads take `delay_ms`. Running a fork takes `run_ms` to start a copy of the
 // agent, then as long as the rerun's live calls, so a recovery takes 1 to 3 s.
 // The next `answer_failures` calls to rewind::answer fail, to shoot a retry.
-type Config = { delay_ms: number; run_ms: number; fail: boolean; answer_failures: number }
+// `dropped` is how many calls the writer has dropped, to shoot the recording menu's warning.
+type Config = { delay_ms: number; run_ms: number; fail: boolean; answer_failures: number; dropped: number }
 
 const random = seededRandom(SEED + 1)
-const config: Config = { delay_ms: 140, run_ms: 1400, fail: false, answer_failures: 0 }
+const config: Config = { delay_ms: 140, run_ms: 1400, fail: false, answer_failures: 0, dropped: 0 }
+// The core's limit on calls waiting for its writer.
+const WRITER_LIMIT = 20_000
 // The agent's code on disk. rewind-dev::configure { code_change: true } plays
 // a person saving the fix for bug 1, the way the core will notice a new version.
 let code: AgentCode = RECORDED_CODE
@@ -342,6 +345,7 @@ worker.registerFunction('rewind::status', async (): Promise<Status> => {
     engine: ENGINE_URL,
     entry: ENTRY,
     recording: [...recordingOn].filter(([, on]) => on).map(([id]) => id),
+    recorder: { waiting: 0, limit: WRITER_LIMIT, dropped: config.dropped },
     runs: recordings.length,
     // The mock records only the agent's runs, so no request arrives at a worker's own server.
     inbound_runs: 0,
@@ -665,6 +669,7 @@ worker.registerFunction(
     reset?: boolean
     code_change?: boolean
     undeclared?: string[]
+    dropped?: number
   }) => {
     if (typeof input.delay_ms === 'number') {
       config.delay_ms = input.delay_ms
@@ -694,6 +699,11 @@ worker.registerFunction(
 
     if (Array.isArray(input.undeclared)) {
       setUndeclared(input.undeclared)
+    }
+
+    if (typeof input.dropped === 'number') {
+      config.dropped = input.dropped
+      changed('recorder', String(input.dropped))
     }
 
     // The core sends no event when its data changes underneath a page, so a page opened before a reset keeps what it read.
