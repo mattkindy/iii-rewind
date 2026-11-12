@@ -23,15 +23,18 @@ import {
 import { usePaneState } from '@iii-dev/console-ui/hooks'
 import { History, Waypoints } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createJournalClient, type WaitingRun as WaitingRunRow } from '../client/journalClient'
 import { createRewindClient } from '../client/rewindClient'
 import { type CheckRequest, useCheck } from '../data/useCheck'
 import { useChangedFeed } from '../data/useChangedFeed'
 import { type Overview, useOverview } from '../data/useOverview'
 import { useRunDetail } from '../data/useRunDetail'
+import { useWaitingRuns } from '../data/useWaitingRuns'
 import { type Cases, caseOf } from '../model/cases'
 import { shortId } from '../model/format'
 import { type Incident, lostIncidents, lostMark, settled } from '../model/lost'
 import { type CheckPassKind, HOME, levelKey, type Nav, parentOf, REPLAY_ON_OPEN } from '../model/nav'
+import { pendingTitle, waitGroups } from '../model/pending'
 import { groupRuns, type RunGroup, signatureOf } from '../model/signatures'
 import { LiveIndicator } from './bits'
 import { CheckView } from './checkView'
@@ -45,6 +48,8 @@ import { type OpeningReplay, RunWorkspace } from './runWorkspace'
 import { LoadError, NoRunsYet, WorkspaceSkeleton } from './states'
 import { FILTERS_HIDE, NO_SPAN_SELECTION, useTraceSync } from './traceSync'
 import { usePageCommands } from './usePageCommands'
+import { WaitingRun } from './waitingRun'
+import { WaitingRuns } from './waitingRuns'
 
 export const PAGE_ID = 'rewind'
 
@@ -71,8 +76,16 @@ function readContext(value: unknown): { run_id?: string } {
 export function RewindPage({ host, ...props }: { host: Host } & PageRenderProps) {
   const { panelSide, onRequestClose, commands, setDirty, panelContext } = props
   const client = useMemo(() => createRewindClient(host.iii), [host])
+  const journal = useMemo(() => createJournalClient(host.iii), [host])
   const feed = useChangedFeed(host.iii)
   const overview = useOverview(feed, client)
+  const waiting = useWaitingRuns(feed, journal)
+  const waits = useMemo(() => waitGroups(waiting.runs), [waiting.runs])
+  // A run leaves the journal's waiting list once it is resolved, and its view stays open on how it went on.
+  const seenWaiting = useRef(new Map<string, WaitingRunRow>())
+  for (const run of waiting.runs) {
+    seenWaiting.current.set(run.workflow_id, run)
+  }
   const paneKey = `rewind:${props.paneId || props.tabId || 'page'}`
   const [nav, setNav] = usePaneState<Nav>(`${paneKey}:nav`, HOME)
   const [announcement, setAnnouncement] = useState<LiveAnnouncement | null>(null)
@@ -268,11 +281,13 @@ export function RewindPage({ host, ...props }: { host: Host } & PageRenderProps)
           status={overviewData.status}
           runs={runs}
           groups={groups}
+          waits={waits}
           incidents={incidents}
           skipped={skipped}
           capped={overviewData.capped}
           canCheck={canCheck}
           onOpenGroup={openGroup}
+          onOpenWait={(wait) => setNav({ level: 'waiting', wait })}
           onOpenLost={(incident) => setNav({ level: 'lost', incident })}
           onOpenAll={() => setNav({ level: 'runs' })}
           onCheckRecent={checkRecent}
@@ -340,6 +355,44 @@ export function RewindPage({ host, ...props }: { host: Host } & PageRenderProps)
           />
         )
       },
+      waiting: (level) => {
+        const group = waits.find((w) => w.key === level.wait)
+        return (
+          <div className="rw-run">
+            <LevelBar crumbs={[homeCrumb, { key: 'waiting', label: group?.title ?? 'Waiting' }]} onBack={back} />
+            <WaitingRuns group={group} onOpen={(workflowId) => setNav({ level: 'waiting-run', workflowId, wait: level.wait })} />
+          </div>
+        )
+      },
+      'waiting-run': (level) => {
+        const run = waiting.runs.find((r) => r.workflow_id === level.workflowId) ?? seenWaiting.current.get(level.workflowId)
+        if (!run) {
+          return (
+            <div className="rw-run">
+              <LevelBar crumbs={[homeCrumb, { key: 'run', label: shortId(level.workflowId) }]} onBack={back} />
+              <div className="rw-error">
+                <StatusPanel variant="info" headline="Not waiting" detail={shortId(level.workflowId)} />
+              </div>
+            </div>
+          )
+        }
+
+        return (
+          <WaitingRun
+            key={run.workflow_id}
+            journal={journal}
+            run={run}
+            onResolved={waiting.refresh}
+            announce={announce}
+            onBack={back}
+            crumbs={[
+              homeCrumb,
+              { key: 'waiting', label: pendingTitle(run.pending), onClick: () => setNav({ level: 'waiting', wait: level.wait }) },
+              { key: 'run', label: shortId(run.workflow_id) },
+            ]}
+          />
+        )
+      },
       check: () => (
         <div className="rw-run">
           <LevelBar crumbs={[homeCrumb, { key: 'check', label: 'Check' }]} onBack={back} />
@@ -377,7 +430,7 @@ export function RewindPage({ host, ...props }: { host: Host } & PageRenderProps)
       return overview.error ? <LoadError what="Rewind" error={overview.error} onRetry={overview.refresh} /> : <WorkspaceSkeleton />
     }
 
-    if (nav.level === 'home' && runs.length === 0 && lost.length === 0) {
+    if (nav.level === 'home' && runs.length === 0 && lost.length === 0 && waits.length === 0) {
       return <NoRunsYet />
     }
 

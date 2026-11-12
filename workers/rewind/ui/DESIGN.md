@@ -7,6 +7,8 @@ of a call all at once. The jobs and flows the levels serve are in `docs/jobs.md`
 | Level | The question it answers |
 | --- | --- |
 | Needs attention | What is waiting on me? |
+| Waiting | Which durable runs wait for this, and for how long? |
+| One waiting run | What should this run get? |
 | One run | Which answer caused this failure, and does it reproduce? |
 | Interrupted | Which runs did a dead worker cut off, and can they be finished? |
 | One interrupted run | What finished, what was cut off, and what should happen to the irreversible call? |
@@ -19,7 +21,13 @@ A slim strip at the top shows the last minute of runs as dots, newest on the rig
 how each one ended, with "Recording · 12/min" beside it. It is the one thing on the landing that
 moves, and it stops when no runs arrive.
 
-Interrupted runs come first, because they are waiting on someone. Under the Interrupted heading,
+Durable runs waiting on a pending step come first, under Waiting, one row per thing they wait for:
+"Waiting for approval" with "3 runs · oldest 4m ago · first times out in 26m", "Cut off mid-call ·
+billing::charge" for calls a crash cut off, and "Sleeping" with when the next one wakes. The page
+reads them from `journal::list` and reads again after each `run` event, since a run that parks or
+goes on ends an execution Rewind records. Without the journal the section isn't there.
+
+Interrupted runs come next, because they are waiting on someone too. Under the Interrupted heading,
 the row reads "12 runs · tools stopped 21:45". The page reads which worker stopped from the run's
 output, where the agent passes on the `invocation_stopped` or `function_not_found` error, and falls
 back to "a worker". Runs that one worker cut off, and that ended within five seconds of each other,
@@ -36,6 +44,25 @@ moment, and a new row rises into place.
 When the core reports the code on disk (`status.target_code`) and recorded runs ran an earlier
 version, a note at the top offers to check them. Without `target_code` the page hides every control
 that needs `rewind::check`, so an older core shows flows A, B and D and nothing broken.
+
+## Waiting
+
+A Waiting row opens the runs that wait for that thing, oldest first, each with the request in the
+person's words, its workflow id, how long it has waited and when it times out or wakes. One line
+under the heading says what resolving does, such as "Each run goes on from where it waited once it
+gets its answer".
+
+A waiting run reads top to bottom, like an interrupted one. The first step says what it waits for,
+"Waiting for approval · Since 4m ago · times out in 26m". When the wait's `detail` is a call,
+`{ function_id, input }`, the step shows that call's input under "Before email::send", which for
+the agent is the invite about to go out. The last step is the one question, Answer: one button
+per choice the wait offers, the first one primary, or a JSON editor and Resolve when it offers
+none. A sleep offers Wake now. A call a crash cut off offers Send again and Enter its result,
+with neither picked, since only a person knows whether the call did its work. The page resolves
+the step with `journal::resolve` by its number, then waits up to 20 s on `journal::wait` and puts
+how the run went on in place of the question: "Run booked · Booked Tuesday 17 Nov at 3:30 pm with
+Dana and sent the invite", "Waiting again", or the error. A resolve the journal refuses, because
+the timeout came first or someone else answered, shows "Not resolved" with the journal's reason.
 
 ## One run
 

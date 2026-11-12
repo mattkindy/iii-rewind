@@ -4,7 +4,7 @@
  */
 import { Button, type ButtonProps, Chip, type ChipTone, Eyebrow, IconButton, JsonHighlight, StatusDot, Tooltip } from '@iii-dev/console-ui'
 import { useCopyFlash } from '@iii-dev/console-ui/hooks'
-import { Check, Copy, LifeBuoy } from 'lucide-react'
+import { Check, Copy, LifeBuoy, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { AnswerSource } from '../client/types'
 import type { Lane } from '../model/lanes'
@@ -79,6 +79,24 @@ export function SectionHead({ title, children }: { title: string; children?: Rea
       <Eyebrow>{title}</Eyebrow>
       {children ? <span className="rw-section-actions">{children}</span> : null}
     </div>
+  )
+}
+
+/** One step of a run read top to bottom, with an icon on a line that joins it to the next. */
+export function Step({ icon: Icon, tone, title, aside, children, last }: { icon: LucideIcon; tone: string; title: string; aside?: ReactNode; children?: ReactNode; last?: boolean }) {
+  return (
+    <section className="rw-step" data-tone={tone} data-last={last || undefined}>
+      <span className="rw-step-icon" aria-hidden>
+        <Icon />
+      </span>
+      <div className="rw-step-body">
+        <h3 className="rw-step-title">
+          {title}
+          {aside ? <span className="rw-step-aside">{aside}</span> : null}
+        </h3>
+        {children}
+      </div>
+    </section>
   )
 }
 

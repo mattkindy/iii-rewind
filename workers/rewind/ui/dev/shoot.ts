@@ -964,6 +964,42 @@ async function flowTracesSync(page: Page, shot: Shooter): Promise<void> {
   await shot('traces-open-on-the-call')
 }
 
+const APPROVAL_REQUESTS = ['Dana next Tuesday', 'Priya next Wednesday', 'Marcus next Thursday', 'Lena next Monday', 'Omar next Friday', 'Sofia next Tuesday']
+
+/** Starts agent::run with approval until one parks before its invite, since the fake model fails some runs first (bug 1). */
+async function parkForApproval(): Promise<string> {
+  for (const [index, who] of APPROVAL_REQUESTS.entries()) {
+    const workflowId = `shoot-approval-${Date.now()}-${index}`
+    const payload = { request: `Book 30 minutes with ${who} afternoon`, approval: true, _workflow_id: workflowId }
+    const reply = await iii.call<unknown, { pending?: boolean }>({ function_id: 'agent::run', payload, timeoutMs: 60_000 }).catch(() => ({ pending: false }))
+    if (reply.pending) {
+      return workflowId
+    }
+  }
+
+  throw new Error('no agent::run with approval parked before its invite')
+}
+
+/** A durable run waiting for approval: the landing's Waiting row, the runs waiting for approval, the run's question, and the run once approved. */
+async function flowWaiting(page: Page, shot: Shooter): Promise<void> {
+  const workflowId = await parkForApproval()
+  const root = scope(page)
+  await page.goto(`${CONSOLE_URL}/#/worker/rewind/rewind`)
+  const row = root.locator('.rw-landing-row[data-wait="wait:approval"]')
+  await row.waitFor({ timeout: 30_000 })
+  await shot('landing-waiting')
+  await row.click()
+  const run = root.locator('.rw-level .rw-landing-row', { hasText: workflowId })
+  await run.waitFor({ timeout: 15_000 })
+  await shot('waiting-for-approval')
+  await run.click()
+  await root.getByRole('button', { name: 'Approve' }).waitFor({ timeout: 15_000 })
+  await shot('waiting-run-before')
+  await root.getByRole('button', { name: 'Approve' }).click()
+  await root.getByText(/^Run (booked|failed|done)/).waitFor({ timeout: 30_000 })
+  await shot('waiting-run-after')
+}
+
 /** The states around the flows: loading, nothing recorded yet, and Rewind not answering. */
 async function flowStates(page: Page, shot: Shooter): Promise<void> {
   await configure({ delay_ms: 2500 })
@@ -997,6 +1033,7 @@ const FLOWS: Flow[] = [
   { id: 'player-light', core: true, walk: flowPlayerStill, themes: ['light'] },
   { id: 'around', core: true, coreOnly: true, walk: flowAround, themes: ['dark'] },
   { id: 'traces', core: true, coreOnly: true, walk: flowTracesSync, themes: ['dark'] },
+  { id: 'waiting', core: true, coreOnly: true, walk: flowWaiting },
 ]
 
 // ── running a flow ──────────────────────────────────────────────────────

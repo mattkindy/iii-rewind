@@ -23,7 +23,10 @@ export const REPLAY_ON_OPEN: Record<CheckVerdict, ReplayThen | undefined> = {
   stopped: 'open',
 }
 
-/** `incident` is the key of one incident of lost work; without it, the newest one shows. */
+/**
+ * `incident` is the key of one incident of lost work; without it, the newest one shows. `wait` is
+ * the key of a group of durable runs waiting on the same thing, and `workflowId` one of them.
+ */
 export type Nav =
   | { level: 'home' }
   | { level: 'runs' }
@@ -31,12 +34,18 @@ export type Nav =
   | { level: 'lost'; incident?: string }
   | { level: 'lost-run'; runId: string; incident?: string }
   | { level: 'check'; key: string }
+  | { level: 'waiting'; wait: string }
+  | { level: 'waiting-run'; workflowId: string; wait: string }
 
 export const HOME: Nav = { level: 'home' }
 
 /** Which level is on screen and for which run, so anything kept per level can start over when it changes. */
 export function levelKey(nav: Nav): string {
-  return 'runId' in nav ? `${nav.level}:${nav.runId}` : nav.level
+  if ('runId' in nav) {
+    return `${nav.level}:${nav.runId}`
+  }
+
+  return 'workflowId' in nav ? `${nav.level}:${nav.workflowId}` : nav.level
 }
 
 /** The level above, for the back button. */
@@ -48,6 +57,8 @@ export function parentOf(nav: Nav, checkOpen: string | null): Nav {
     lost: () => HOME,
     'lost-run': () => ({ level: 'lost', incident: nav.level === 'lost-run' ? nav.incident : undefined }),
     check: () => HOME,
+    waiting: () => HOME,
+    'waiting-run': () => (nav.level === 'waiting-run' ? { level: 'waiting', wait: nav.wait } : HOME),
   }
   return up[nav.level]()
 }

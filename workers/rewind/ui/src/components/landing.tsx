@@ -1,22 +1,24 @@
 /**
  * The first screen: what needs attention. A strip at the top shows the last
- * minute of runs as they arrive. Interrupted runs come first, because they wait
- * on someone: the newest incident gets a row, and earlier ones fold away. Then
- * failures, grouped by how they failed, each with a count, one plain line and
- * how recent the newest is. A group opens its newest run. When the worker's
- * code has changed, the landing offers to check recent runs against it.
+ * minute of runs as they arrive. Durable runs waiting on a pending step come
+ * first, one row per thing they wait for, then interrupted runs, because both
+ * wait on someone: the newest incident gets a row, and earlier ones fold away.
+ * Then failures, grouped by how they failed, each with a count, one plain line
+ * and how recent the newest is. A group opens its newest run. When the
+ * worker's code has changed, the landing offers to check recent runs against it.
  *
  * The landing fills in while traffic runs. A count steps up to its new value,
  * a row that changed is lit for a moment, and a new row rises into place.
  */
 import { Button, EmptyState, Eyebrow, List, ListItem, StatusDot, StatusPanel } from '@iii-dev/console-ui'
-import { ChevronDown, ChevronRight, CircleCheck, FlaskConical, LifeBuoy, ListTree } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleCheck, FlaskConical, Hourglass, LifeBuoy, ListTree, Moon, Unplug } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { LostRun, Status } from '../client/types'
 import { MOST_RUNS } from '../data/useOverview'
 import { changedAtLabel, codeChangedSince, versionLabel } from '../model/code'
 import { ago, dayAndTime, plural } from '../model/format'
 import { type Incident, incidentRowLabel, lostState, settled } from '../model/lost'
+import { groupDetail, type WaitGroup } from '../model/pending'
 import { explainGroup, KINDS, type RunGroup, type TriageRow } from '../model/signatures'
 import { ActivityStrip } from './activityStrip'
 import { useNow, useReducedMotion, useRecentChanges } from './motion'
@@ -97,15 +99,36 @@ function IncidentRow({
   )
 }
 
+const WAIT_ICON = { wait: Hourglass, sleep: Moon, lost: Unplug }
+
+function WaitRow({ group, now, lit, risen, onOpen }: { group: WaitGroup; now: number; lit: boolean; risen: boolean; onOpen: () => void }) {
+  const Icon = WAIT_ICON[group.kind]
+  return (
+    <ListItem
+      className="rw-landing-row"
+      data-wait={group.key}
+      data-changed={lit || undefined}
+      data-new={risen || undefined}
+      leading={<Icon aria-hidden />}
+      label={<span className="rw-landing-title">{group.title}</span>}
+      description={groupDetail(group, now)}
+      trailing={<ChevronRight aria-hidden />}
+      onClick={onOpen}
+    />
+  )
+}
+
 export function Landing({
   status,
   runs,
   groups,
+  waits,
   incidents: allIncidents,
   skipped,
   capped,
   canCheck,
   onOpenGroup,
+  onOpenWait,
   onOpenLost,
   onOpenAll,
   onCheckRecent,
@@ -114,6 +137,9 @@ export function Landing({
   runs: TriageRow[]
   /** Every run grouped by how it failed, worst first. */
   groups: RunGroup[]
+  /** Durable runs waiting on a pending step, grouped by what they wait for. */
+  waits: WaitGroup[]
+  onOpenWait: (key: string) => void
   /** Every incident of lost work, newest first. */
   incidents: Incident[]
   /** Lost runs someone skipped while the page is open. */
@@ -137,12 +163,18 @@ export function Landing({
   const codeNote = Boolean(code && canCheck && older > 0)
 
   const counts = useMemo(
-    () => new Map([...failures.map((g): [string, number] => [g.signature.key, g.runs.length]), ...incidents.map((i): [string, number] => [`lost:${i.key}`, i.runs.length])]),
-    [failures, incidents],
+    () =>
+      new Map([
+        ...failures.map((g): [string, number] => [g.signature.key, g.runs.length]),
+        ...incidents.map((i): [string, number] => [`lost:${i.key}`, i.runs.length]),
+        ...waits.map((w): [string, number] => [`waiting:${w.key}`, w.runs.length]),
+      ]),
+    [failures, incidents, waits],
   )
   const { changed, added } = useRecentChanges(counts, LIT_MS)
   const newestRun = runs[0]?.started_at_ms ?? 0
-  useNow(Date.now() - newestRun < RECENT_MS ? 1_000 : 15_000)
+  // A wait's deadline counts down in seconds, so the landing ticks every second while one is shown.
+  const now = useNow(Date.now() - newestRun < RECENT_MS || waits.length > 0 ? 1_000 : 15_000)
 
   return (
     <div className="rw-scroll">
@@ -161,6 +193,24 @@ export function Landing({
               </Button>
             }
           />
+        ) : null}
+
+        {waits.length > 0 ? (
+          <section className="rw-landing-section">
+            <Eyebrow as="h2">Waiting</Eyebrow>
+            <List aria-label="Durable runs waiting, by what they wait for">
+              {waits.map((group) => (
+                <WaitRow
+                  key={group.key}
+                  group={group}
+                  now={now}
+                  lit={changed.has(`waiting:${group.key}`)}
+                  risen={added.has(`waiting:${group.key}`)}
+                  onOpen={() => onOpenWait(group.key)}
+                />
+              ))}
+            </List>
+          </section>
         ) : null}
 
         {newest ? (

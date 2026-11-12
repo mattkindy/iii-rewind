@@ -5,9 +5,8 @@
  * so the decision panel is the same one the debugger uses, with recovery copy.
  */
 import { type BreadcrumbItem, Button, Chip, type PageCommandsApi, StatusPanel, useConfirm } from '@iii-dev/console-ui'
-import type { LucideIcon } from 'lucide-react'
 import { CircleCheck, Diamond, History, LifeBuoy, Radio, SquarePen, Unplug } from 'lucide-react'
-import { type ReactNode, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { RewindClient } from '../client/rewindClient'
 import type { Call, Choice, Fork, FunctionRow, LostRun, RunRow } from '../client/types'
 import { useAnswerTemplate } from '../data/useAnswerTemplate'
@@ -23,7 +22,7 @@ import { type LostKind, type LostState, lostMark, recoveryState, stoppedFunction
 import { outcomeLook } from '../model/outcomes'
 import { callName, callUrl } from '../model/requests'
 import { answerCheck, formatsOf } from '../model/schema'
-import { RecoverButton, SourceChip, WorkerGlyph } from './bits'
+import { RecoverButton, SourceChip, Step, WorkerGlyph } from './bits'
 import { DecisionPanel } from './decisionPanel'
 import { LevelBar } from './levelBar'
 import { RECOVERY_COMMANDS } from './runCommands'
@@ -36,23 +35,6 @@ const STATE_CHIP: Record<LostState, { label: string; tone: 'success' | 'warning'
   open: { label: 'Not recovered', tone: 'neutral' },
   done: { label: 'Recovered', tone: 'success' },
   skipped: { label: 'Skipped', tone: 'neutral' },
-}
-
-function Step({ icon: Icon, tone, title, aside, children, last }: { icon: LucideIcon; tone: string; title: string; aside?: ReactNode; children?: ReactNode; last?: boolean }) {
-  return (
-    <section className="rw-step" data-tone={tone} data-last={last || undefined}>
-      <span className="rw-step-icon" aria-hidden>
-        <Icon />
-      </span>
-      <div className="rw-step-body">
-        <h3 className="rw-step-title">
-          {title}
-          {aside ? <span className="rw-step-aside">{aside}</span> : null}
-        </h3>
-        {children}
-      </div>
-    </section>
-  )
 }
 
 function CallRows({ calls, laneFor }: { calls: Call[]; laneFor: (functionId: string, worker?: string) => Lane }) {
