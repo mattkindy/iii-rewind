@@ -1,0 +1,62 @@
+t+   109ms engine ~/.local/bin/iii up on 49738, pid 64818
+t+   421ms [callee] ROLE probe-callee up, pid 64820
+t+   421ms [rival] ROLE rival up, pid 64822
+t+   432ms [pauser] ROLE pauser up, pid 64821
+t+   457ms --- 1. the worker dies while a run waits for approval
+t+   465ms [callee] STEP read k1
+t+   468ms [callee] STEP think k1
+t+   524ms durable: probe::approve returned {"pending":true,"waiting_for":{"function_id":"durable::wait","kind":"wait","name":"approval","since_ms":1794468074849,"step":2},"workflow_id":"wf-k1"}
+t+   524ms SIGKILL pauser (pid 64821)
+t+   814ms [pauser] ROLE pauser up, pid 64824
+t+   920ms [journal] journal: starting wf-k1 again now that its pending step is resolved (epoch 1 was its last)
+t+   924ms [callee] STEP send k1 key wf-k1:3
+t+   927ms [pauser] HANDLER k1 sent msg-1
+t+   974ms CHECK durable: resolve {"resolved":true,"resumed":true,"step":2}, run done, 2 executions, output {"decision":{"timed_out":false,"value":{"approved":true}},"label":"k1","sent":"msg-1"} sends {"sends":1,"repeats":0} second execution began 5 ms after the resolve
+t+   976ms [callee] STEP read rk1
+t+   981ms [callee] STEP think rk1
+t+  1037ms SIGKILL rival (pid 64822)
+t+  1302ms [rival] ROLE rival up, pid 64825
+t+  1407ms CHECK rival: the caller got {"error":{"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}} resolve after the restart {"resolved":false} sends {"sends":0,"repeats":0}
+t+  1407ms --- 2. the journal dies while a run sleeps 10 s
+t+  1411ms [callee] STEP read n1
+t+  1413ms durable: probe::nap returned {"pending":true,"waiting_for":{"function_id":"durable::sleep","kind":"sleep","since_ms":1794468075738,"step":1,"wake_at_ms":1794468085738},"workflow_id":"wf-n1"}
+t+  4415ms SIGKILL journal (pid 64819)
+t+ 11416ms [journal] journal: wf-n1 is due: a sleep woke or a wait timed out
+t+ 11418ms [journal] journal: starting wf-n1 again now that its pending step is resolved (epoch 1 was its last)
+t+ 11424ms [callee] STEP read n1-after
+t+ 11425ms [pauser] HANDLER n1 woke after 10002 ms
+t+ 11480ms CHECK durable: done, 2 executions, output {"label":"n1","slept_ms":10002} the second execution began 8 ms after the wake time
+t+ 14482ms SIGKILL rival (pid 64825)
+t+ 14771ms [rival] ROLE rival up, pid 64836
+t+ 14771ms CHECK rival: the worker holding the timer died 3 s in, and the caller got {"error":{"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}}
+t+ 14771ms --- 3. a short timeout with no value, then a late value
+t+ 14773ms [callee] STEP read t1
+t+ 14775ms [callee] STEP think t1
+t+ 16831ms [journal] journal: wf-t1 is due: a sleep woke or a wait timed out
+t+ 16834ms [journal] journal: starting wf-t1 again now that its pending step is resolved (epoch 1 was its last)
+t+ 16836ms [pauser] HANDLER t1 not approved {"timed_out":true}
+t+ 16876ms CHECK durable: run done output {"decision":{"timed_out":true},"label":"t1","sent":null} late resolve {"reason":"wf-t1 has ended (done)","resolved":false,"resumed":false} sends {"sends":0,"repeats":0}
+t+ 16880ms [callee] STEP read rt1
+t+ 16881ms [callee] STEP think rt1
+t+ 18940ms CHECK rival: run {"decision":{"timed_out":true},"label":"rt1","sent":null} late resolve {"resolved":false} sends {"sends":0,"repeats":0}
+t+ 20205ms CHECK race: 20 of 40 values won and 20 timeouts won; the resolver's answer matched what the run got in 40 of 40; runs with other than one recorded value: 0; sends 20
+t+ 20205ms --- 4. the value arrives before the run reaches its wait
+t+ 20207ms [callee] STEP read e1
+t+ 20208ms [callee] STEP think e1
+t+ 21717ms [callee] STEP send e1 key wf-e1:3
+t+ 21719ms [pauser] HANDLER e1 sent msg-22
+t+ 21722ms CHECK durable: early resolve {"resolved":true,"resumed":false} the call returned {"decision":{"timed_out":false,"value":{"approved":true}},"label":"e1","sent":"msg-22"} 1 executions sends {"sends":1,"repeats":0}
+t+ 21723ms [callee] STEP read re1
+t+ 21724ms [callee] STEP think re1
+t+ 28231ms CHECK rival: early resolve {"resolved":false} the call returned {"decision":{"timed_out":true},"label":"re1","sent":null} sends {"sends":0,"repeats":0}
+t+ 28231ms --- 5. 200 runs wait at once
+t+ 28421ms durable: 200 parked in 176 ms, 200 returned pending, 200 waiting in the journal, 0 calls still open
+t+ 28421ms durable: pauser before {"heap_used":18537496,"rss":98369536,"running":0} with 200 waiting {"heap_used":18807840,"rss":110215168,"running":0}
+t+ 28559ms SIGKILL pauser (pid 64824)
+t+ 28845ms [pauser] ROLE pauser up, pid 64853
+t+ 29162ms CHECK durable: 200 of 200 resolves took, 200 of 200 done, 200 sent exactly once, 0 repeats dropped
+t+ 29247ms rival: 200 awaiting, 200 calls still open
+t+ 29247ms rival: before {"awaiting":0,"heap_used":16732656,"rss":95109120,"running":0} with 200 waiting {"awaiting":200,"heap_used":17965744,"rss":99418112,"running":200}
+t+ 61267ms SIGKILL rival (pid 64836)
+t+ 61541ms [rival] ROLE rival up, pid 64866
+t+ 61725ms CHECK rival: 200 of 200 callers timed out after 30 s while 200 handlers still waited; 100 of the first 100 resolves found their run and 0 of the 100 after the kill did; 100 runs sent, none to a caller that was still there

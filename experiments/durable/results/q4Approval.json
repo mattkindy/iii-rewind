@@ -1,0 +1,278 @@
+{
+  "runs": 40,
+  "parked": 28,
+  "rss_mb_before": 118.21875,
+  "rss_mb_waiting": 155.9375,
+  "invites_while_waiting": 0,
+  "resolved": 28,
+  "done": 28,
+  "booked": 28,
+  "executions": [
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2
+  ],
+  "one_invite": 22,
+  "invites_matching_send_steps": 28,
+  "more_than_one_invite": [
+    "approve-10",
+    "approve-13",
+    "approve-17",
+    "approve-22",
+    "approve-31",
+    "approve-35"
+  ],
+  "repeats_dropped": 0,
+  "all_done_ms": 2811,
+  "per_run": [
+    {
+      "workflow_id": "approve-0",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-2",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-3",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-4",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-6",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-9",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-10",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 2,
+      "send_steps": 2
+    },
+    {
+      "workflow_id": "approve-11",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-12",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-13",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 2,
+      "send_steps": 2
+    },
+    {
+      "workflow_id": "approve-17",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 2,
+      "send_steps": 2
+    },
+    {
+      "workflow_id": "approve-19",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-20",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-21",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-22",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 2,
+      "send_steps": 2
+    },
+    {
+      "workflow_id": "approve-25",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-26",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-27",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-28",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-29",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-30",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-31",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 2,
+      "send_steps": 2
+    },
+    {
+      "workflow_id": "approve-32",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-33",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-35",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 2,
+      "send_steps": 2
+    },
+    {
+      "workflow_id": "approve-36",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-37",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    },
+    {
+      "workflow_id": "approve-38",
+      "status": "done",
+      "booked": true,
+      "executions": 2,
+      "invites": 1,
+      "send_steps": 1
+    }
+  ]
+}

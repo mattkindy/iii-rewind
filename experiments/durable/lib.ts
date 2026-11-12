@@ -138,6 +138,9 @@ export type Role = Child & {
   kill: (signal?: NodeJS.Signals) => void
 }
 
+/** Role lines that match `skip` stay out of the timeline, for a probe that starts hundreds of runs at once. */
+export const timeline: { skip?: RegExp } = {}
+
 export const PRELOAD = path.resolve(HERE, '../../workers/rewind/preload/node/index.mjs')
 export const JOURNAL_WORKER = path.resolve(HERE, '../../workers/journal/src/worker.ts')
 
@@ -162,7 +165,7 @@ export function startRole(name: string, file: string, env: Record<string, string
     }
 
     lines.push(line)
-    if (/^(ROLE|HANDLER|STEP|journal:|rewind preload)/.test(line)) {
+    if (/^(ROLE|HANDLER|STEP|journal:|rewind preload)/.test(line) && !timeline.skip?.test(line)) {
       log(`[${name}] ${line}`)
     }
 

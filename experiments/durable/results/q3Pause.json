@@ -1,0 +1,117 @@
+{
+  "kill_durable": {
+    "status": "done",
+    "executions": 2,
+    "sends": 1,
+    "repeats": 0,
+    "resume_ms": 5
+  },
+  "kill_rival": {
+    "caller": {
+      "error": {
+        "code": "invocation_stopped",
+        "message": "invocation_stopped: Invocation stopped"
+      }
+    },
+    "resolved": false,
+    "sends": 0,
+    "repeats": 0
+  },
+  "sleep_durable": {
+    "status": "done",
+    "executions": 2,
+    "slept_ms": 10002,
+    "late_ms": 8
+  },
+  "sleep_rival": {
+    "caller": {
+      "error": {
+        "code": "invocation_stopped",
+        "message": "invocation_stopped: Invocation stopped"
+      }
+    }
+  },
+  "timeout_durable": {
+    "decision": {
+      "timed_out": true
+    },
+    "late": {
+      "reason": "wf-t1 has ended (done)",
+      "resolved": false,
+      "resumed": false
+    },
+    "sends": 0,
+    "repeats": 0
+  },
+  "timeout_rival": {
+    "decision": {
+      "timed_out": true
+    },
+    "late": {
+      "resolved": false
+    },
+    "sends": 0,
+    "repeats": 0
+  },
+  "race": {
+    "runs": 40,
+    "values_won": 20,
+    "timeouts_won": 20,
+    "agree": 40,
+    "other_than_one_value": 0,
+    "sends": 20
+  },
+  "early_durable": {
+    "early": {
+      "resolved": true,
+      "resumed": false
+    },
+    "parked": false,
+    "executions": 1,
+    "sends": 1,
+    "repeats": 0
+  },
+  "early_rival": {
+    "early": {
+      "resolved": false
+    },
+    "decision": {
+      "timed_out": true
+    },
+    "sends": 0,
+    "repeats": 0
+  },
+  "many_durable": {
+    "park_ms": 176,
+    "open_calls_while_waiting": 0,
+    "running_while_waiting": 0,
+    "heap_mb": [
+      17.678733825683594,
+      17.936553955078125
+    ],
+    "rss_mb": [
+      93.8125,
+      105.109375
+    ],
+    "resolved": 200,
+    "done": 200,
+    "sent_once": 200,
+    "repeats": 0
+  },
+  "many_rival": {
+    "open_calls_while_waiting": 200,
+    "running_while_waiting": 200,
+    "heap_mb": [
+      15.957504272460938,
+      17.133468627929688
+    ],
+    "rss_mb": [
+      90.703125,
+      94.8125
+    ],
+    "callers_timed_out": 200,
+    "resolved_before_kill": 100,
+    "resolved_after_kill": 0,
+    "sent_once": 100
+  }
+}
