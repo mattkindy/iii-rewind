@@ -4,7 +4,7 @@
   "description": "Shortcuts for the iii calls the demo makes. The project itself starts with `iii compose --up`.",
   "scripts": {
     "doctor": "node scripts/doctor.mjs",
-    "traffic": "iii trigger --engine ws://127.0.0.1:49334 traffic::burst --json '{\"count\":40}' --timeout-ms 120000",
+    "traffic": "iii call --engine ws://127.0.0.1:49334 traffic::burst --json '{\"count\":40}' --timeout-ms 120000",
     "kill-tools": "scripts/node_modules/.bin/tsx scripts/kill.ts tools",
     "kill-rewind": "scripts/node_modules/.bin/tsx scripts/kill.ts rewind",
     "check": "scripts/node_modules/.bin/tsx scripts/e2e.ts",

@@ -24,7 +24,7 @@ const worker = registerWorker(ENGINE_URL, { workerName: 'trigger-cli' })
 
 async function main(): Promise<number> {
   try {
-    const result = await worker.trigger({ function_id: functionId, payload, timeoutMs: TIMEOUT_MS })
+    const result = await worker.call({ function_id: functionId, payload, timeoutMs: TIMEOUT_MS })
     console.log(JSON.stringify(result, null, 2))
     return 0
   } catch (error) {

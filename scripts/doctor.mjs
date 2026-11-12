@@ -9,7 +9,7 @@
 import { execFileSync } from 'node:child_process'
 import { createServer } from 'node:net'
 
-const III_VERSION = '0.25.0'
+const III_VERSION = '0.26.0'
 const MIN_NODE_MAJOR = 20
 const PORTS = [{ port: 49335, what: 'the fake holidays API and email provider' }, { port: 3133, what: 'iii\'s console and its proxy' }]
 

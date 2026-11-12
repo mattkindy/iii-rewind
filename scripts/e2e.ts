@@ -2,7 +2,7 @@
  * End-to-end check of Rewind against a running stack. It records runs until it
  * has one of each planted bug, checks the formats Rewind passes on and that each
  * run has a trace of its own, replays them, replays a booked run with the tools
- * worker copied, replays a calendar::find-slot call made with `iii trigger` as a
+ * worker copied, replays a calendar::find-slot call made with `iii call` as a
  * run of its own, finds a run by a call's id, forks
  * and tests the SyntaxError run, forks it again with auto on and with a stop,
  * checks every SyntaxError run against the code
@@ -133,17 +133,17 @@ const results: { name: string; ok: boolean }[] = []
 type Changed = { kind: string; id: string; check?: CheckResult; trace_id?: string | null }
 const changes: Changed[] = []
 
-/** Binds rewind::changed the way a console page does. The iii:: prefix keeps the handler out of traces. */
+/** Observes rewind::changed the way a console page does. The iii:: prefix keeps the handler out of traces. */
 function listenForChanges(): void {
-  worker.registerFunction('iii::rewind-e2e::changed', async (event: Changed) => {
-    changes.push(event)
+  worker.registerFunction('iii::rewind-e2e::changed', async (observed: { input: Changed }) => {
+    changes.push(observed.input)
     return null
   })
-  worker.registerTrigger({ type: 'rewind::changed', function_id: 'iii::rewind-e2e::changed', config: {} })
+  worker.observe({ function_id: 'rewind::changed', capture: ['input'] }, 'iii::rewind-e2e::changed')
 }
 
 async function call<T>(functionId: string, payload: Record<string, unknown> = {}, timeoutMs = CALL_TIMEOUT_MS): Promise<T> {
-  return worker.trigger<Record<string, unknown>, T>({ function_id: functionId, payload, timeoutMs })
+  return worker.call<Record<string, unknown>, T>({ function_id: functionId, payload, timeoutMs })
 }
 
 function check(name: string, ok: boolean, detail = ''): boolean {
@@ -614,10 +614,10 @@ async function replayWithToolsCopied(detail: RunDetail): Promise<void> {
 
 const DIRECT_SLOT = { attendee: 'Rooted', day: '2026-12-08', duration: 30 }
 
-/** A function triggered from outside, with nothing recorded calling it, is a run of its own and replays in a copy of its worker. */
+/** A function called from outside, with nothing recorded calling it, is a run of its own and replays in a copy of its worker. */
 async function replayOtherRoot(): Promise<void> {
-  const answer = execFileSync('iii', ['trigger', '--engine', ENGINE_URL, 'calendar::find-slot', '--json', JSON.stringify(DIRECT_SLOT), '--timeout-ms', '30000'], { encoding: 'utf8' })
-  console.log(`    iii trigger calendar::find-slot: ${answer.replace(/\s+/g, ' ').trim()}`)
+  const answer = execFileSync('iii', ['call', '--engine', ENGINE_URL, 'calendar::find-slot', '--json', JSON.stringify(DIRECT_SLOT), '--timeout-ms', '30000'], { encoding: 'utf8' })
+  console.log(`    iii call calendar::find-slot: ${answer.replace(/\s+/g, ' ').trim()}`)
   let run: RunSummary | undefined
   for (let attempt = 0; attempt < 20 && !run; attempt++) {
     await sleep(250)
@@ -628,7 +628,7 @@ async function replayOtherRoot(): Promise<void> {
   const anyRoot = await call<RunSummary[]>('rewind::runs', { root: 'any', q: DIRECT_SLOT.attendee, limit: 5 })
   const agentRuns = await call<RunSummary[]>('rewind::runs', { q: DIRECT_SLOT.attendee, limit: 5 })
   check(
-    'a calendar::find-slot call made with iii trigger is listed as a run of its own, under root any and its function, and not with the agent runs',
+    'a calendar::find-slot call made with iii call is listed as a run of its own, under root any and its function, and not with the agent runs',
     run?.function_id === 'calendar::find-slot' && anyRoot.some((r) => r.run_id === run?.run_id) && agentRuns.length === 0,
     run ? `run ${run.run_id}` : 'not listed',
   )
