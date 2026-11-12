@@ -132,12 +132,12 @@ and the page, and what each check covers, are in [docs/testing.md](docs/testing.
 | `workers/clock` | `clock::now`, plus the fake holidays API and email provider (TypeScript) |
 | `workers/tools` | `calendar::find-slot` and `email::send` (Python) |
 | `workers/traffic` | `traffic::burst`, which sends the agent requests (TypeScript) |
-| `workers/journal` | The journal that makes `agent::run` durable, and the recovery that starts an interrupted run again (TypeScript) |
+| `workers/journal` | The journal that makes `agent::run` durable, the recovery that starts an interrupted run again, and the waits and sleeps a run can pause on (TypeScript) |
 | `workers/rewind` | Rewind itself (Rust), with its page for iii's console (TypeScript) |
 | `workers/rewind/preload` | The preloads that record calls around iii (Node and Python) |
 | `docs/rewind.md` | How Rewind works, and every function its page calls |
-| `docs/flows/` | Each flow step by step with a diagram: record, replay, fork, check, recover, resume, save as test |
+| `docs/flows/` | Each flow step by step with a diagram: record, replay, fork, check, recover, resume, pause, save as test |
 | `docs/spike.md` | What iii 0.25.0 does, measured before building |
 | `docs/spike-0.26.md` | What iii 0.26.0's observers change for Rewind, measured |
 | `docs/multi-engine.md` | What still works when the tools run on a second engine |
-| `docs/durable-execution.md` | How an agent run survives the agent dying mid-run, measured with `npm run kill-agent` |
+| `docs/durable-execution.md` | How an agent run survives the agent dying mid-run, measured with `npm run kill-agent`, and how a run pauses for an approval with no worker held |

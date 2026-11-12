@@ -22,9 +22,12 @@ runs in the copy and the email POST gets its recorded response, and it replays a
 
 It forks a crash with safe defaults and checks that the fork runs to a booking without stopping,
 and that a stop on `email::send` pauses it there. It checks that Rewind passes on each function's
-schemas, and that each run in a burst has a trace of its own. Last, it kills the tools worker,
+schemas, and that each run in a burst has a trace of its own. Then it kills the tools worker,
 recovers an interrupted run, and checks that the run shows tools disconnecting and connecting
-again. Throughout, it checks that nothing was written to the outbox.
+again. Until then, it checks that nothing was written to the outbox. Last, it starts runs with
+`approval: true`, checks that one parks without sending anything, approves it through
+`journal::resolve` and checks that it books and sends its invite, declines another, and checks that
+`durable::wait` fails at once when called from outside a durable run.
 
 Because it edits `workers/agent` for a moment, it refuses to start when that folder has
 uncommitted changes. Set `III_URL` and `III_COMPOSE_DIR` to run it against a stack somewhere else.
