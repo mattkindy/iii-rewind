@@ -506,14 +506,36 @@ the WAL index was a SIGBUS.
 
 ## Tests
 
-`rewind::save-test` writes a fork to `tests/rewind/<name>.json`:
-`{ entry, input, answers: [{ seq, path?, function_id, input, match?, answer, source, hold? }], expect: { status } | { output } | { throws } }`.
-`entry` is the run's root function. `rewind::test` runs that file the same way as a fork, with no
-live calls, and compares the outcome. A saved answer goes to the call at its place when the call
-is for the same function and sends the same normalized input, unless the answer says
-`"match": "function"`. Any other call pauses the run, and the result's `diverged` shows the saved
-input beside the one the call sent. A test copies only the root's worker, so a call that ran in another
-worker's copy in the fork gets the copy's answer back from a stub.
+`rewind::save-test` writes a finished fork to `tests/rewind/<name>.json`:
+
+```ts
+{ entry, input, answers: [{ seq, path?, function_id, input, match?, answer, source, hold? }], expect }
+```
+
+`entry` is the run's root function and `input` its recorded input. Each answer is a call the
+fork's latest rerun made: its place, its function, the input it sent without `_caller_worker_id`,
+the answer it got and where that answer came from. A call the caller gave up on also has a `hold`,
+so the test waits as long as the recorded call took and the caller's timeout fires again. `expect`
+is `{ status }` when the fork returned an output with a `status` string, `{ output }` with the
+whole output when it returned anything else, and `{ throws }` with the error message when it
+crashed. A paused fork is refused with `REWIND_FORK_PAUSED`.
+
+`rewind::test` runs the file in a copy of the root's worker, on a spare when there is one, and
+nothing runs live. A call gets the saved answer at its place when it is for the same function and
+sends the same input, compared the way a replay compares an input with the recording. An answer
+with `"match": "function"` in the file skips the input, for a call whose input changes on every
+run. Any other call pauses the run. The test passes when the run returns the expected `status`, or
+exactly the expected `output`, or crashes with the expected message. A paused run fails, and the
+result's `diverged` says where: the call's place, function and input, what the file has at that
+place under `saved`, and under `differences` each field of the input that changed, as a JSON
+pointer with the value the file saved and the one the call sent. `saved` is left out when the file
+has no call at that place, and `differences` is empty when the file has another function there.
+Rewind doesn't store a test run as a fork.
+
+A file whose answers have no `input`, saved before tests compared inputs, is refused with
+`REWIND_BAD_FIXTURE` until someone saves it again or adds `"match": "function"` to each of those
+answers. A test copies only the root's worker, so a call that ran in another worker's copy in the
+fork gets the copy's answer back from a stub.
 
 `rewind::test` takes a test's name, a path from the project folder, or an absolute path, and the
 file has to be inside `tests/rewind`. A path that leads anywhere else, with `..` or through a
@@ -540,7 +562,7 @@ Every function takes and returns JSON. The UI only talks to Rewind through these
 | `rewind::lost` | `{}` | `[Run & { lost_at, mid_call, recovery: ForkSummary \| null }]` |
 | `rewind::recover` | `{ run_id, auto?, stops?, copy? }` | `Fork` in recovery mode, or the run's existing one |
 | `rewind::save-test` | `{ fork_id, name? }` | `{ path, fixture }`, with `path` from the project folder |
-| `rewind::test` | `{ path }`, a path or a test name | `{ pass, expected, outcome, diverged? }`, with `diverged: { seq, path?, function_id, input, saved?: { function_id, input }, differences: [{ field, saved?, sent? }] }` when the run paused |
+| `rewind::test` | `{ path }`, a path or a test name | `{ pass, expected, outcome, diverged? }`, with `diverged: { seq, path?, function_id, input, saved?: { function_id, input? }, differences: [{ field, saved?, sent? }] }` when the run paused |
 | `rewind::check` | `{ run_ids, live?, copy? }`, at most 500 runs | `[CheckResult]`, in input order |
 
 `copy` lists the workers to copy besides the root's own. A fork made with a `base` takes the base's
