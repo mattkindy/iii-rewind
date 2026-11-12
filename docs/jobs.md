@@ -129,9 +129,9 @@ The flow is done when every interrupted run is finished or deliberately skipped.
 
 ## What this asks of the core
 
-- **Run the current code.** Today a fork's copy of the agent keeps running the code it started
-  with. Rewind restarts a copy when the agent's source has changed since it started, and reports
-  the code version on each fork.
+- **Run the current code.** A replay or a fork runs the agent's code as it is on disk. When the
+  source has changed since a copy started, Rewind stops that copy and starts a new one before the
+  next rerun, and it reports the code version on each fork.
 - **Check a group of runs.** A function that replays a list of runs against the current code and
   returns one result per run: same, different, or stopped at a call. By default it makes no live
   calls. Asked to, it runs the calls whose effects allow it, and fills irreversible ones with a
