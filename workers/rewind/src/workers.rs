@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use iii_sdk::{ObserverHandle, RegisterFunction, Source, Target, engine::EngineFunctions, protocol::TriggerRequest};
+use iii_sdk::{CallRequest, ObserverHandle, RegisterFunction, Source, Target, engine::EngineFunctions};
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -60,9 +60,9 @@ fn followed(known: &Known) -> bool {
 }
 
 async fn listed(app: &App) -> Result<Vec<Value>> {
-    let mut request = TriggerRequest::new(EngineFunctions::LIST_WORKERS, json!({}));
+    let mut request = CallRequest::new(EngineFunctions::LIST_WORKERS, json!({}));
     request.timeout_ms = Some(10_000);
-    let listing = app.iii.trigger(request).await?;
+    let listing = app.iii.call(request).await?;
     Ok(listing["workers"].as_array().cloned().unwrap_or_default())
 }
 

@@ -2,7 +2,7 @@
 //! trace, and a call's own span is found in the engine's trace store the first time someone
 //! asks, by its `execute <function_id>` name and a start within a couple of milliseconds.
 
-use iii_sdk::{current_invocation, protocol::TriggerRequest};
+use iii_sdk::{current_invocation, protocol::CallRequest};
 use serde_json::{Value, json};
 
 use crate::{app::App, error::Result, store::Event, types::Call};
@@ -35,12 +35,12 @@ pub fn current() -> (Option<String>, Option<String>) {
 async fn spans_of(app: &App, trace_id: &str) -> Result<Vec<Value>> {
     let mut spans = Vec::new();
     for page_number in 0..MAX_PAGES {
-        let mut request = TriggerRequest::new(
+        let mut request = CallRequest::new(
             SPANS_FUNCTION,
             json!({ "trace_id": trace_id, "search_all_spans": true, "offset": page_number * PAGE, "limit": PAGE }),
         );
         request.timeout_ms = Some(10_000);
-        let page = app.iii.trigger(request).await?;
+        let page = app.iii.call(request).await?;
         let found = page["spans"].as_array().cloned().unwrap_or_default();
         let last_page = (found.len() as u64) < PAGE;
         spans.extend(found);

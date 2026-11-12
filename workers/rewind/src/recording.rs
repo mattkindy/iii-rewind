@@ -13,8 +13,8 @@ use std::{
 };
 
 use iii_sdk::{
-    Capture, ObserverHandle, ObserverState, On, RegisterFunction, Source, Target,
-    engine::EngineFunctions, protocol::TriggerRequest,
+    CallRequest, Capture, ObserverHandle, ObserverState, RegisterFunction, Source, Target,
+    engine::EngineFunctions,
 };
 use serde_json::{Value, json};
 use tokio::sync::Notify;
@@ -244,14 +244,14 @@ pub fn register(app: &Arc<App>) {
 pub async fn confirm_target_owner(app: &App) -> std::result::Result<(), String> {
     let deadline = Instant::now() + Duration::from_secs(15);
     loop {
-        let mut request = TriggerRequest::new(
+        let mut request = CallRequest::new(
             EngineFunctions::LIST_FUNCTIONS,
             json!({ "prefix": RECORD_TARGET, "include_internal": true }),
         );
         request.timeout_ms = Some(10_000);
         let listed = app
             .iii
-            .trigger(request)
+            .call(request)
             .await
             .map_err(|error| format!("could not check who owns {RECORD_TARGET}: {error}"))?;
         let owner = listed["functions"]
@@ -275,11 +275,12 @@ pub async fn confirm_target_owner(app: &App) -> std::result::Result<(), String> 
     }
 }
 
+/// With `error` captured next to `input` and `output`, the observer fires after every finished
+/// call, whether it succeeded or failed.
 fn observe(app: &App, function_id: &str) -> ObserverHandle {
     app.iii.observe(
         Source::function(function_id)
             .namespace(DEFAULT_NAMESPACE)
-            .on(On::Complete)
             .capture([Capture::Input, Capture::Output, Capture::Error, Capture::Caller]),
         Target::function(RECORD_TARGET).namespace(DEFAULT_NAMESPACE),
     )

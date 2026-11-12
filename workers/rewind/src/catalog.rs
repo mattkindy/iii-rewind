@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iii_sdk::{IIIClient, engine::EngineFunctions, protocol::TriggerRequest};
+use iii_sdk::{CallRequest, IIIClient, engine::EngineFunctions};
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -78,9 +78,9 @@ pub async fn formats(iii: &IIIClient, function_ids: &[String]) -> Result<HashMap
     let mut found = HashMap::new();
     for batch in function_ids.chunks(INFO_BATCH) {
         let input = json!({ "function_ids": batch, "namespace": DEFAULT_NAMESPACE });
-        let mut request = TriggerRequest::new(EngineFunctions::INFO_FUNCTIONS, input);
+        let mut request = CallRequest::new(EngineFunctions::INFO_FUNCTIONS, input);
         request.timeout_ms = Some(10_000);
-        let info = iii.trigger(request).await?;
+        let info = iii.call(request).await?;
         for row in info["functions"].as_array().into_iter().flatten() {
             if let Some(function_id) = row["function_id"].as_str() {
                 found.insert(function_id.to_string(), Formats::from_info(row));
@@ -108,9 +108,9 @@ pub async fn response_format(iii: &IIIClient, function_id: &str) -> Option<Value
 }
 
 pub async fn list(iii: &IIIClient) -> Result<Vec<FunctionRow>> {
-    let mut request = TriggerRequest::new(EngineFunctions::LIST_FUNCTIONS, json!({}));
+    let mut request = CallRequest::new(EngineFunctions::LIST_FUNCTIONS, json!({}));
     request.timeout_ms = Some(10_000);
-    let listed = iii.trigger(request).await?;
+    let listed = iii.call(request).await?;
     Ok(listed["functions"]
         .as_array()
         .map(|rows| rows.iter().filter_map(FunctionRow::from_listing).collect())

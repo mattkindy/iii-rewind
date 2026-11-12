@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iii_sdk::{current_invocation, protocol::TriggerRequest};
+use iii_sdk::{current_invocation, protocol::CallRequest};
 use serde_json::Value;
 
 use super::{
@@ -147,9 +147,9 @@ pub async fn copied_call(app: Arc<App>, slot: SessionSlot, function_id: String, 
         Copied::Runs { hold_ms } => hold_ms,
     };
 
-    let mut request = TriggerRequest::new(&function_id, made.input.clone());
+    let mut request = CallRequest::new(&function_id, made.input.clone());
     request.timeout_ms = Some(ENTRY_TIMEOUT_MS);
-    let result = app.iii.trigger(request.namespace(namespace)).await;
+    let result = app.iii.call(request.namespace(namespace)).await;
     if let Some(ms) = hold_ms {
         tokio::time::sleep_until(tokio::time::Instant::from_std(received + Duration::from_millis(ms))).await;
     }
@@ -179,9 +179,9 @@ pub async fn live_call(app: &App, function_id: &str, input: &Value) -> Answer {
         return outside::live_request(input).await;
     }
 
-    let mut request = TriggerRequest::new(function_id, input.clone());
+    let mut request = CallRequest::new(function_id, input.clone());
     request.timeout_ms = Some(LIVE_TIMEOUT_MS);
-    Answer::from_result(app.iii.trigger(request.namespace(DEFAULT_NAMESPACE)).await)
+    Answer::from_result(app.iii.call(request.namespace(DEFAULT_NAMESPACE)).await)
 }
 
 pub async fn live_step(app: &App, at: &At, function_id: &str, worker: String, effects: Vec<Effect>, input: Value) -> Step {
@@ -225,9 +225,9 @@ pub async fn run_in(app: &Arc<App>, space: &Arc<ForkSpace>, root: &str, input: V
     session.begin();
     let caller = session.rerun_caller();
     space.install(session);
-    let mut request = TriggerRequest::new(root, input);
+    let mut request = CallRequest::new(root, input);
     request.timeout_ms = Some(ENTRY_TIMEOUT_MS);
-    let result = iii_sdk::scope(caller, app.iii.trigger(request.namespace(space.namespace.clone()))).await;
+    let result = iii_sdk::scope(caller, app.iii.call(request.namespace(space.namespace.clone()))).await;
     let session = space
         .take()
         .ok_or_else(|| Error::Internal("the run's session went missing".into()))?;

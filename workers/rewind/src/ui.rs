@@ -8,18 +8,20 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use iii_sdk::{IIIClient, RegisterFunction, protocol::RegisterTriggerInput, trigger::Trigger};
+use iii_sdk::{IIIClient, ObserverHandle, RegisterFunction, Source, Target};
 use serde_json::{Value, json};
 
 use crate::{app::App, error::Error};
 
 const CONTENT: &str = "rewind::ui-content";
+/// The ADE serves each asset whose observer of this function gives its kind and path.
+const ASSET_SOURCE: &str = "ade::ui::asset";
 const WATCH_EVERY: Duration = Duration::from_secs(1);
 
 struct Asset {
     path: &'static str,
     file: &'static str,
-    trigger_type: &'static str,
+    kind: &'static str,
     content_type: &'static str,
     placeholder: &'static str,
 }
@@ -29,14 +31,14 @@ const ASSETS: [Asset; 2] = [
     Asset {
         path: "rewind/styles.css",
         file: "styles.css",
-        trigger_type: "console:style",
+        kind: "style",
         content_type: "text/css; charset=utf-8",
         placeholder: "/* The Rewind UI has not been built yet. */\n",
     },
     Asset {
         path: "rewind/page.js",
         file: "page.js",
-        trigger_type: "console:script",
+        kind: "script",
         content_type: "text/javascript; charset=utf-8",
         placeholder: PLACEHOLDER_PAGE,
     },
@@ -82,20 +84,11 @@ pub fn register(app: &Arc<App>) {
     );
 }
 
-#[allow(deprecated)]
-fn register_asset(iii: &IIIClient, asset: &Asset) -> Option<Trigger> {
-    let registered = iii.register_trigger(RegisterTriggerInput::new(
-        asset.trigger_type,
-        CONTENT,
-        json!({ "path": asset.path }),
-    ));
-    match registered {
-        Ok(trigger) => Some(trigger),
-        Err(error) => {
-            eprintln!("rewind: could not register {}: {error}", asset.path);
-            None
-        }
-    }
+fn register_asset(iii: &IIIClient, asset: &Asset) -> ObserverHandle {
+    iii.observe(
+        Source::function(ASSET_SOURCE).args(json!({ "kind": asset.kind, "path": asset.path })),
+        Target::function(CONTENT),
+    )
 }
 
 /// `None` while the file is missing, so building it for the first time counts as a change.
@@ -108,11 +101,11 @@ fn signature(dist: &Path, asset: &Asset) -> Signature {
 
 struct Published {
     seen: Signature,
-    trigger: Option<Trigger>,
+    observer: ObserverHandle,
 }
 
-/// The ADE treats a second trigger for a path as a replacement and pushes it to open
-/// tabs, so a changed file is registered again and the old trigger dropped.
+/// The ADE treats a second observer for a path as a replacement and pushes it to open
+/// tabs, so a changed file is observed again and the old observer disposed once the new one is active.
 pub fn start(app: &Arc<App>) {
     let app = app.clone();
     app.rt.clone().spawn(async move {
@@ -121,7 +114,7 @@ pub fn start(app: &Arc<App>) {
             .iter()
             .map(|asset| Published {
                 seen: signature(&dist, asset),
-                trigger: register_asset(&app.iii, asset),
+                observer: register_asset(&app.iii, asset),
             })
             .collect();
         loop {
@@ -134,12 +127,13 @@ pub fn start(app: &Arc<App>) {
 
                 eprintln!("rewind: {} changed, publishing it again", asset.path);
                 let replacement = register_asset(&app.iii, asset);
-                if let Some(old) = current.trigger.take() {
-                    old.unregister();
+                if let Err(error) = replacement.ready().await {
+                    eprintln!("rewind: the ADE did not take {} again: {error}", asset.path);
                 }
 
+                let old = std::mem::replace(&mut current.observer, replacement);
+                let _ = old.dispose().await;
                 current.seen = now;
-                current.trigger = replacement;
             }
         }
     });
