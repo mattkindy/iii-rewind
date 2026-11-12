@@ -1,0 +1,13 @@
+iii: v1
+name: journal
+language: typescript
+description: The journal for durable runs (journal::*), and the recovery that starts interrupted runs again.
+
+runtime:
+  kind: node
+
+# The start command runs one node process, so a signal sent to it reaches the worker itself.
+# The journal runs without Rewind's preload: its own calls are bookkeeping, not app work.
+scripts:
+  install: npm install --no-audit --no-fund
+  start: node --import tsx src/worker.ts
