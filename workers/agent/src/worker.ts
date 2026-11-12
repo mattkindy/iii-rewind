@@ -48,7 +48,7 @@ function isTimeout(error: unknown): boolean {
 async function call<T>(functionId: string, payload: unknown, policy: CallPolicy = DEFAULT_POLICY): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await worker.trigger<unknown, T>({ function_id: functionId, payload, timeoutMs: policy.timeoutMs })
+      return await worker.call<unknown, T>({ function_id: functionId, payload, timeoutMs: policy.timeoutMs })
     } catch (error) {
       if (isTimeout(error) && attempt < policy.retriesOnTimeout) {
         continue

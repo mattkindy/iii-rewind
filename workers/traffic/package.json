@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@opentelemetry/api": "1.9.1",
-    "iii-sdk": "0.25.0",
+    "iii-sdk": "0.26.0",
     "tsx": "4.19.2"
   },
   "devDependencies": {

@@ -52,7 +52,7 @@ export async function askRewind(request) {
   const payload = { ...request, invocation: currentCall() ?? null }
   const worker = await rewind()
   try {
-    return await worker.trigger({ function_id: OUTSIDE_FUNCTION, payload, timeoutMs: ASK_TIMEOUT_MS })
+    return await worker.call({ function_id: OUTSIDE_FUNCTION, payload, timeoutMs: ASK_TIMEOUT_MS })
   } catch (error) {
     throw new Error(`${error.code ?? 'REWIND'}: ${error.message}`)
   }

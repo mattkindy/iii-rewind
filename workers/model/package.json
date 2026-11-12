@@ -7,7 +7,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "iii-sdk": "0.25.0",
+    "iii-sdk": "0.26.0",
     "tsx": "4.19.2"
   },
   "devDependencies": {

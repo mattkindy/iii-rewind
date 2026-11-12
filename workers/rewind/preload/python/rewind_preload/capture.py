@@ -183,8 +183,8 @@ def _question(request: dict) -> dict:
 
 def ask_rewind(request: dict) -> dict:
     """What Rewind says the call returns. A pause or an injected error raises, with Rewind's code in the message."""
-    return _rewind().trigger(_question(request))
+    return _rewind().call(_question(request))
 
 
 async def ask_rewind_async(request: dict) -> dict:
-    return await _rewind().trigger_async(_question(request))
+    return await _rewind().call_async(_question(request))

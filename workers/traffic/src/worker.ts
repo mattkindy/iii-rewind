@@ -45,7 +45,7 @@ function describeError(error: unknown) {
 // Calling from the root context makes each run the root of a trace of its own,
 // the way a request from outside would arrive, instead of one trace per burst.
 function startRun(payload: { request: string; user: string }): Promise<RunOutput> {
-  return context.with(ROOT_CONTEXT, () => worker.trigger<typeof payload, RunOutput>({ function_id: 'agent::run', payload }))
+  return context.with(ROOT_CONTEXT, () => worker.call<typeof payload, RunOutput>({ function_id: 'agent::run', payload }))
 }
 
 async function runOne(index: number): Promise<Outcome> {
