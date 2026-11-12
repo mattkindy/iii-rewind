@@ -166,13 +166,14 @@ worker.registerFunction('journal::list', async (input: { status?: Status }) => j
 })
 
 // Inside a durable run the preload handles these calls and never sends them, so a call that reaches the journal came from outside one.
+// They are not internal, so Rewind stubs them in its copies, where a wait pauses for a person instead of failing as not found.
 for (const functionId of ['durable::wait', 'durable::sleep']) {
   worker.registerFunction(
     functionId,
     async () => {
       throw new Error(`${functionId} only works inside a durable run: a function registered with durable: true, in a Node worker with Rewind's preload`)
     },
-    { description: `Fails: ${functionId} only works inside a durable run, where Rewind's preload makes it a step`, ...INTERNAL },
+    { description: `Fails: ${functionId} only works inside a durable run, where Rewind's preload makes it a step` },
   )
 }
 
