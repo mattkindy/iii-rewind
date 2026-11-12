@@ -3,23 +3,24 @@
  *
  * Run from the repo root, while traffic is flowing:
  *   npx tsx scripts/kill.ts tools
+ *   npx tsx scripts/kill.ts agent experiments/durable/stack/worker-compose.yaml
  *
- * It asks `iii ps --json` for the worker with that name in this project's compose file, so a
- * worker with the same name in another project is never touched. Set III_BIN to use a
- * particular iii binary.
+ * It asks `iii ps --json` for the worker with that name in the compose file, this project's by
+ * default, so a worker with the same name in another project is never touched. Set III_BIN to
+ * use a particular iii binary.
  */
 import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
 
 type IiiProcess = { pid: number; kind: string; name: string; compose_file: string | null; command: string }
 
-const name = process.argv[2]
+const [name, composeArg = 'worker-compose.yaml'] = process.argv.slice(2)
 if (!name) {
-  console.error('usage: npx tsx scripts/kill.ts <worker name>')
+  console.error('usage: npx tsx scripts/kill.ts <worker name> [compose file]')
   process.exit(2)
 }
 
-const composeFile = resolve(process.cwd(), 'worker-compose.yaml')
+const composeFile = resolve(process.cwd(), composeArg)
 const listing = execFileSync(process.env.III_BIN ?? 'iii', ['ps', '--json'], { encoding: 'utf8' })
 const processes = JSON.parse(listing) as IiiProcess[]
 
