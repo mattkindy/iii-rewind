@@ -3,7 +3,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    path::Path,
+    path::{Path, PathBuf},
     sync::Mutex,
     time::Duration,
 };
@@ -124,8 +124,43 @@ pub struct Event {
     pub span_id: Option<String>,
 }
 
+/// One connection writes, and queries take a connection of their own from `readers`, so a slow
+/// runs list never makes the recorder's writer wait, and a long write never delays a page.
 pub struct Store {
-    conn: Mutex<Connection>,
+    writer: Mutex<Connection>,
+    readers: Readers,
+    #[cfg(test)]
+    _scratch: Option<Scratch>,
+}
+
+// The page asks for status, functions, runs and lost runs at once, so four cover a normal refresh.
+const READERS_KEPT: usize = 4;
+
+/// Read connections to the store's file. A query takes an idle one, or opens another when every
+/// one is busy, so queries never wait for each other either.
+struct Readers {
+    path: PathBuf,
+    idle: Mutex<Vec<Connection>>,
+}
+
+impl Readers {
+    fn take(&self) -> rusqlite::Result<Connection> {
+        if let Some(conn) = self.idle.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).pop() {
+            return Ok(conn);
+        }
+
+        let conn = Connection::open(&self.path)?;
+        conn.busy_timeout(BUSY_TIMEOUT)?;
+        conn.execute_batch("pragma query_only = true")?;
+        Ok(conn)
+    }
+
+    fn give_back(&self, conn: Connection) {
+        let mut idle = self.idle.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if idle.len() < READERS_KEPT {
+            idle.push(conn);
+        }
+    }
 }
 
 /// Which start times a runs list covers: before `before_ms`, not counting it, and from
@@ -241,11 +276,26 @@ fn add_columns(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
+const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Readers no longer wait on a writer with WAL, and `normal` sync skips an fsync per commit, which
 /// can lose the last commits on a power cut but never corrupts the file.
 pub fn tune(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch("pragma journal_mode = wal; pragma synchronous = normal;")?;
-    conn.busy_timeout(Duration::from_secs(5))
+    conn.busy_timeout(BUSY_TIMEOUT)
+}
+
+/// A database file for one test, deleted with its `-wal` and `-shm` when the store is dropped.
+#[cfg(test)]
+struct Scratch(PathBuf);
+
+#[cfg(test)]
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", self.0.display()));
+        }
+    }
 }
 
 impl Store {
@@ -259,23 +309,42 @@ impl Store {
         conn.execute_batch(SCHEMA)?;
         add_columns(&conn)?;
         Ok(Self {
-            conn: Mutex::new(conn),
+            writer: Mutex::new(conn),
+            readers: Readers {
+                path: path.to_path_buf(),
+                idle: Mutex::default(),
+            },
+            #[cfg(test)]
+            _scratch: None,
         })
     }
 
+    /// A store in a file of its own, so its readers see what its writer commits the way they do
+    /// in Rewind. An in-memory database would give each connection a database of its own.
     #[cfg(test)]
-    pub fn in_memory() -> Self {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(SCHEMA).unwrap();
-        add_columns(&conn).unwrap();
+    pub fn temporary() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let name = format!("rewind-store-{}-{}.sqlite", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed));
+        let path = std::env::temp_dir().join(name);
+        let scratch = Scratch(path.clone());
         Self {
-            conn: Mutex::new(conn),
+            _scratch: Some(scratch),
+            ..Self::open(&path).unwrap()
         }
     }
 
-    fn with<T>(&self, work: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> Result<T> {
-        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    fn write<T>(&self, work: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> Result<T> {
+        let conn = self.writer.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         Ok(work(&conn)?)
+    }
+
+    fn read<T>(&self, work: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> Result<T> {
+        let conn = self.readers.take()?;
+        let result = work(&conn);
+        self.readers.give_back(conn);
+        Ok(result?)
     }
 
     pub fn insert_event(&self, event: &Event) -> Result<()> {
@@ -288,7 +357,7 @@ impl Store {
             return Ok(());
         }
 
-        self.with(|conn| {
+        self.write(|conn| {
             let transaction = conn.unchecked_transaction()?;
             {
                 let mut statement = transaction.prepare_cached(&format!(
@@ -320,14 +389,14 @@ impl Store {
     }
 
     pub fn set_span_id(&self, invocation_id: &str, span_id: &str) -> Result<()> {
-        self.with(|conn| {
+        self.write(|conn| {
             conn.execute("update events set span_id = ?2 where invocation_id = ?1", params![invocation_id, span_id])?;
             Ok(())
         })
     }
 
     pub fn insert_worker_change(&self, change: &WorkerChange) -> Result<()> {
-        self.with(|conn| {
+        self.write(|conn| {
             conn.execute(
                 "insert into worker_changes (at_ms, worker, worker_id, event) values (?1, ?2, ?3, ?4)",
                 params![change.at_ms as i64, change.worker, change.worker_id, change.event],
@@ -338,7 +407,7 @@ impl Store {
 
     /// Workers that connected or disconnected from `from_ms` to `to_ms`, both included, oldest first.
     pub fn worker_changes_between(&self, from_ms: u64, to_ms: u64) -> Result<Vec<WorkerChange>> {
-        self.with(|conn| {
+        self.read(|conn| {
             let mut statement = conn.prepare_cached(
                 "select at_ms, worker, worker_id, event from worker_changes \
                  where at_ms >= ?1 and at_ms <= ?2 order by at_ms, rowid",
@@ -356,7 +425,7 @@ impl Store {
     }
 
     pub fn counter(&self, name: &str) -> Result<u64> {
-        self.with(|conn| {
+        self.read(|conn| {
             conn.query_row("select value from counters where name = ?1", params![name], |row| {
                 row.get::<_, i64>(0)
             })
@@ -366,7 +435,7 @@ impl Store {
     }
 
     pub fn set_counter(&self, name: &str, value: u64) -> Result<()> {
-        self.with(|conn| {
+        self.write(|conn| {
             conn.execute(
                 "insert into counters (name, value) values (?1, ?2) on conflict (name) do update set value = ?2",
                 params![name, value as i64],
@@ -376,7 +445,7 @@ impl Store {
     }
 
     pub fn event(&self, invocation_id: &str) -> Result<Option<Event>> {
-        self.with(|conn| {
+        self.read(|conn| {
             conn.query_row(
                 &format!("select {EVENT_COLUMNS} from events where invocation_id = ?1"),
                 params![invocation_id],
@@ -388,7 +457,7 @@ impl Store {
 
     /// Every event whose caller was this invocation, in no particular order.
     pub fn children(&self, invocation_id: &str) -> Result<Vec<Event>> {
-        self.with(|conn| {
+        self.read(|conn| {
             let mut statement = conn.prepare_cached(&format!(
                 "select {EVENT_COLUMNS} from events where caller_invocation_id = ?1"
             ))?;
@@ -404,7 +473,7 @@ impl Store {
 
     /// The entry function's events in `default` that started inside `window`, newest first.
     pub fn runs_in(&self, entry: &str, window: Window, limit: usize) -> Result<Vec<Event>> {
-        self.with(|conn| {
+        self.read(|conn| {
             let mut statement = conn.prepare_cached(&format!(
                 "select {EVENT_COLUMNS} from events where function_id = ?1 and namespace = 'default' \
                  and started_at_ms < ?3 and started_at_ms >= ?4 order by started_at_ms desc limit ?2"
@@ -417,7 +486,7 @@ impl Store {
 
     /// Requests that arrived at a worker's own HTTP server, newest first. Each is the root of a run.
     pub fn inbound_runs(&self, window: Window, limit: usize) -> Result<Vec<Event>> {
-        self.with(|conn| {
+        self.read(|conn| {
             let mut statement = conn.prepare_cached(&format!(
                 "select {EVENT_COLUMNS} from events where kind = 'http_in' \
                  and started_at_ms < ?2 and started_at_ms >= ?3 order by started_at_ms desc limit ?1"
@@ -431,7 +500,7 @@ impl Store {
     /// Calls in `default` that nothing recorded called, newest first, optionally of one function:
     /// calls made from outside, such as with `iii trigger`, and requests to a worker's own server.
     pub fn uncalled_in(&self, function_id: Option<&str>, window: Window, limit: usize) -> Result<Vec<Event>> {
-        self.with(|conn| {
+        self.read(|conn| {
             let mut statement = conn.prepare_cached(&uncalled_query())?;
             let (before, since) = window.bounds();
             let rows = statement.query_map(params![limit as i64, before, since, function_id], event_from_row)?;
@@ -440,14 +509,14 @@ impl Store {
     }
 
     pub fn count_inbound_runs(&self) -> Result<u64> {
-        self.with(|conn| {
+        self.read(|conn| {
             conn.query_row("select count(*) from events where kind = 'http_in'", [], |row| row.get::<_, i64>(0))
                 .map(|count| count as u64)
         })
     }
 
     pub fn count_runs(&self, entry: &str) -> Result<u64> {
-        self.with(|conn| {
+        self.read(|conn| {
             conn.query_row(
                 "select count(*) from events where function_id = ?1 and namespace = 'default'",
                 params![entry],
@@ -458,7 +527,7 @@ impl Store {
     }
 
     pub fn has_recorded(&self, function_id: &str) -> Result<bool> {
-        self.with(|conn| {
+        self.read(|conn| {
             conn.query_row(
                 "select exists (select 1 from events where function_id = ?1 and namespace = 'default')",
                 params![function_id],
@@ -470,7 +539,7 @@ impl Store {
     /// The newest successful call to `function_id` in `default` that another run of the
     /// same entry function made, or none when no other run ever got one through.
     pub fn newest_success_elsewhere(&self, function_id: &str, run_id: &str) -> Result<Option<Event>> {
-        self.with(|conn| {
+        self.read(|conn| {
             conn.query_row(
                 &format!(
                     "select {EVENT_COLUMNS} from events \
@@ -488,7 +557,7 @@ impl Store {
 
     /// The runs that made a call whose invocation id starts with `prefix`, ignoring case.
     pub fn runs_with_call_prefix(&self, prefix: &str) -> Result<HashSet<String>> {
-        self.with(|conn| {
+        self.read(|conn| {
             let mut statement = conn.prepare_cached(
                 "select distinct caller_invocation_id from events \
                  where caller_invocation_id is not null and substr(lower(invocation_id), 1, length(?1)) = ?1",
@@ -499,7 +568,7 @@ impl Store {
     }
 
     fn next_number(&self, counter: &str) -> Result<u64> {
-        self.with(|conn| {
+        self.write(|conn| {
             conn.execute(
                 "insert into counters (name, value) values (?1, 1) \
                  on conflict (name) do update set value = value + 1",
@@ -522,7 +591,7 @@ impl Store {
 
     pub fn put_fork(&self, fork: &ForkRecord) -> Result<()> {
         let body = serde_json::to_string(fork).map_err(|error| Error::StoreData(error.to_string()))?;
-        self.with(|conn| {
+        self.write(|conn| {
             conn.execute(
                 "insert or replace into forks (fork_id, run_id, body, created_at_ms) values (?1, ?2, ?3, ?4)",
                 params![fork.fork_id, fork.run_id, body, fork.created_at_ms as i64],
@@ -533,7 +602,7 @@ impl Store {
 
     /// The fork, none when there is no such fork, or an error when its stored body does not parse.
     pub fn fork(&self, fork_id: &str) -> Result<Option<ForkRecord>> {
-        let body: Option<String> = self.with(|conn| {
+        let body: Option<String> = self.read(|conn| {
             conn.query_row(
                 "select body from forks where fork_id = ?1",
                 params![fork_id],
@@ -546,7 +615,7 @@ impl Store {
 
     /// The run's forks, oldest first. A fork whose body does not parse is left out, and said so.
     pub fn forks_of_run(&self, run_id: &str) -> Result<Vec<ForkRecord>> {
-        let rows: Vec<(String, String)> = self.with(|conn| {
+        let rows: Vec<(String, String)> = self.read(|conn| {
             let mut statement = conn
                 .prepare_cached("select fork_id, body from forks where run_id = ?1 order by created_at_ms")?;
             let rows = statement.query_map(params![run_id], |row| Ok((row.get(0)?, row.get(1)?)))?;
@@ -561,14 +630,14 @@ impl Store {
     }
 
     pub fn count_forks(&self) -> Result<u64> {
-        self.with(|conn| {
+        self.read(|conn| {
             conn.query_row("select count(*) from forks", [], |row| row.get::<_, i64>(0))
                 .map(|count| count as u64)
         })
     }
 
     pub fn delete_fork(&self, fork_id: &str) -> Result<()> {
-        self.with(|conn| {
+        self.write(|conn| {
             conn.execute("delete from forks where fork_id = ?1", params![fork_id])?;
             Ok(())
         })
@@ -580,7 +649,7 @@ impl Store {
             return Ok(None);
         }
 
-        self.with(|conn| {
+        self.read(|conn| {
             conn.query_row(
                 "select started_at_ms from events where function_id = ?1 and namespace = 'default' \
                  order by started_at_ms desc limit 1 offset ?2",
@@ -599,7 +668,7 @@ impl Store {
         let cutoff = cutoff_ms as i64;
         let mut events = 0;
         loop {
-            let gone = self.with(|conn| {
+            let gone = self.write(|conn| {
                 conn.execute(
                     "delete from events where rowid in \
                      (select rowid from events where started_at_ms < ?1 limit ?2)",
@@ -612,19 +681,19 @@ impl Store {
             }
         }
 
-        let forks = self.with(|conn| {
+        let forks = self.write(|conn| {
             conn.execute(
                 "delete from forks where created_at_ms < ?1 \
                  or not exists (select 1 from events where invocation_id = forks.run_id)",
                 params![cutoff],
             )
         })?;
-        let worker_changes = self.with(|conn| conn.execute("delete from worker_changes where at_ms < ?1", params![cutoff]))?;
+        let worker_changes = self.write(|conn| conn.execute("delete from worker_changes where at_ms < ?1", params![cutoff]))?;
         Ok(Deleted { events, forks, worker_changes })
     }
 
     pub fn toggles(&self) -> Result<HashMap<String, bool>> {
-        self.with(|conn| {
+        self.read(|conn| {
             let mut statement = conn.prepare_cached("select function_id, enabled from record_toggles")?;
             let rows = statement.query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? != 0))
@@ -634,7 +703,7 @@ impl Store {
     }
 
     pub fn set_toggle(&self, function_id: &str, enabled: bool) -> Result<()> {
-        self.with(|conn| {
+        self.write(|conn| {
             conn.execute(
                 "insert or replace into record_toggles (function_id, enabled) values (?1, ?2)",
                 params![function_id, enabled as i64],
@@ -673,7 +742,7 @@ mod tests {
 
     #[test]
     fn an_event_comes_back_as_it_went_in() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         let stored = event("a", Some("run-1"));
         store.insert_event(&stored).unwrap();
         assert_eq!(store.event("a").unwrap(), Some(stored.clone()));
@@ -682,7 +751,7 @@ mod tests {
 
     #[test]
     fn events_stored_together_come_back_like_ones_stored_alone() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         let batch = [event("a", Some("run-1")), event("b", Some("run-1")), event("c", None)];
         store.insert_events(&batch).unwrap();
         store.insert_events(&[]).unwrap();
@@ -692,19 +761,52 @@ mod tests {
 
     #[test]
     fn a_file_store_uses_wal() {
-        let path = std::env::temp_dir().join(format!("rewind-store-wal-{}.sqlite", std::process::id()));
-        let store = Store::open(&path).unwrap();
-        let mode: String = store.with(|conn| conn.query_row("pragma journal_mode", [], |row| row.get(0))).unwrap();
+        let store = Store::temporary();
+        let mode: String = store.read(|conn| conn.query_row("pragma journal_mode", [], |row| row.get(0))).unwrap();
         assert_eq!(mode, "wal");
-        drop(store);
-        for suffix in ["", "-wal", "-shm"] {
-            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
-        }
+    }
+
+    #[test]
+    fn a_query_runs_while_a_write_is_under_way_and_sees_it_once_it_commits() {
+        let store = Store::temporary();
+        store
+            .write(|conn| {
+                let transaction = conn.unchecked_transaction()?;
+                transaction.execute("insert into counters (name, value) values ('fork', 7)", [])?;
+                assert_eq!(store.counter("fork").unwrap(), 0);
+                transaction.commit()
+            })
+            .unwrap();
+        assert_eq!(store.counter("fork").unwrap(), 7);
+    }
+
+    #[test]
+    fn a_write_commits_while_a_query_is_reading() {
+        let store = Store::temporary();
+        store.insert_event(&event("a", Some("run-1"))).unwrap();
+        let seen = store
+            .read(|conn| {
+                let mut statement = conn.prepare("select invocation_id from events")?;
+                let mut rows = statement.query([])?;
+                let first: String = rows.next()?.unwrap().get(0)?;
+                store.insert_event(&event("b", Some("run-1"))).unwrap();
+                Ok(first)
+            })
+            .unwrap();
+        assert_eq!(seen, "a");
+        assert_eq!(store.children("run-1").unwrap().len(), 2);
+    }
+
+    #[test]
+    fn a_query_cannot_write() {
+        let store = Store::temporary();
+        let refused = store.read(|conn| conn.execute("insert into counters (name, value) values ('fork', 1)", []));
+        assert!(refused.is_err());
     }
 
     #[test]
     fn a_run_keeps_its_code_version() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         let run = Event {
             code_version: Some("3f2a9c10aaaa".into()),
             ..event("run-1", None)
@@ -715,13 +817,13 @@ mod tests {
 
     #[test]
     fn an_older_database_gets_the_columns_added_since() {
-        let conn = Connection::open_in_memory().unwrap();
+        let path = std::env::temp_dir().join(format!("rewind-store-older-{}.sqlite", std::process::id()));
+        let _scratch = Scratch(path.clone());
         let added = ",\n  code_version         text,\n  kind                 text,\n  trace_id             text,\n  span_id              text";
         assert!(SCHEMA.contains(added));
-        conn.execute_batch(&SCHEMA.replace(added, "")).unwrap();
-        add_columns(&conn).unwrap();
-        add_columns(&conn).unwrap();
-        let store = Store { conn: Mutex::new(conn) };
+        Connection::open(&path).unwrap().execute_batch(&SCHEMA.replace(added, "")).unwrap();
+        drop(Store::open(&path).unwrap());
+        let store = Store::open(&path).unwrap();
         let traced = Event {
             kind: Some("fetch".into()),
             trace_id: Some("0af7651916cd43dd8448eb211c80319c".into()),
@@ -733,7 +835,7 @@ mod tests {
 
     #[test]
     fn a_counter_starts_at_zero_and_keeps_what_was_set() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         assert_eq!(store.counter("capture_offset").unwrap(), 0);
         store.set_counter("capture_offset", 120).unwrap();
         store.set_counter("capture_offset", 240).unwrap();
@@ -742,7 +844,7 @@ mod tests {
 
     #[test]
     fn a_call_id_prefix_finds_the_run_that_made_it() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         store.insert_event(&event("9C41aa-call", Some("run-1"))).unwrap();
         store.insert_event(&event("9c42bb-call", Some("run-2"))).unwrap();
         store.insert_event(&event("run-3", None)).unwrap();
@@ -771,7 +873,7 @@ mod tests {
 
     #[test]
     fn the_newest_success_from_another_run_is_found() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         for run in ["run-1", "run-2", "run-3", "run-4"] {
             store.insert_event(&agent_run(run)).unwrap();
         }
@@ -791,7 +893,7 @@ mod tests {
 
     #[test]
     fn a_function_no_other_run_got_through_has_nothing_to_find() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         store.insert_event(&agent_run("run-1")).unwrap();
         store.insert_event(&agent_run("run-2")).unwrap();
         store.insert_event(&send("own", "run-1", 10, "success")).unwrap();
@@ -802,7 +904,7 @@ mod tests {
 
     #[test]
     fn runs_page_by_start_time() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         for (id, started_at_ms) in [("r1", 100), ("r2", 200), ("r3", 300), ("r4", 400)] {
             store
                 .insert_event(&Event {
@@ -823,7 +925,7 @@ mod tests {
 
     #[test]
     fn calls_nothing_recorded_called_are_found_newest_first_and_of_one_function() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         let burst = Event {
             function_id: "traffic::burst".into(),
             caller_worker: None,
@@ -867,9 +969,9 @@ mod tests {
 
     #[test]
     fn listing_roots_reads_the_index_of_calls_without_a_caller_and_never_sorts() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         let plan: Vec<String> = store
-            .with(|conn| {
+            .read(|conn| {
                 let mut statement = conn.prepare(&format!("explain query plan {}", uncalled_query()))?;
                 let rows = statement.query_map(params![10, i64::MAX, 0, Option::<String>::None], |row| row.get::<_, String>(3))?;
                 rows.collect()
@@ -882,7 +984,7 @@ mod tests {
 
     fn fork_row(store: &Store, fork_id: &str, run_id: &str, created_at_ms: u64) {
         store
-            .with(|conn| {
+            .write(|conn| {
                 conn.execute(
                     "insert into forks (fork_id, run_id, body, created_at_ms) values (?1, ?2, '{}', ?3)",
                     params![fork_id, run_id, created_at_ms as i64],
@@ -902,7 +1004,7 @@ mod tests {
 
     #[test]
     fn the_nth_newest_run_says_where_the_kept_runs_begin() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         for (id, started_at_ms) in [("r1", 100), ("r2", 200), ("r3", 300)] {
             store.insert_event(&Event { started_at_ms, ..agent_run(id) }).unwrap();
         }
@@ -915,7 +1017,7 @@ mod tests {
 
     #[test]
     fn deleting_before_a_time_drops_old_calls_their_forks_and_old_worker_changes() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         store.insert_event(&Event { started_at_ms: 100, ..agent_run("old-run") }).unwrap();
         store.insert_event(&send("old-send", "old-run", 110, "success")).unwrap();
         store.insert_event(&Event { started_at_ms: 300, ..agent_run("new-run") }).unwrap();
@@ -931,7 +1033,7 @@ mod tests {
         assert_eq!(store.event("old-run").unwrap(), None);
         assert!(store.event("new-send").unwrap().is_some());
         let kept: Vec<String> = store
-            .with(|conn| conn.prepare("select fork_id from forks")?.query_map([], |row| row.get(0))?.collect())
+            .read(|conn| conn.prepare("select fork_id from forks")?.query_map([], |row| row.get(0))?.collect())
             .unwrap();
         assert_eq!(kept, ["f3"]);
         assert_eq!(store.worker_changes_between(0, 1_000).unwrap(), [change(300)]);
@@ -940,7 +1042,7 @@ mod tests {
 
     #[test]
     fn deleting_goes_on_past_one_chunk() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         let old: Vec<Event> = (0..DELETE_CHUNK + 3).map(|n| event(&format!("old-{n}"), Some("run-1"))).collect();
         store.insert_events(&old).unwrap();
         store.insert_event(&Event { started_at_ms: 50, ..event("kept", Some("run-1")) }).unwrap();
@@ -950,7 +1052,7 @@ mod tests {
 
     #[test]
     fn a_fork_whose_body_does_not_parse_is_an_error_and_is_left_out_of_its_runs_forks() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         fork_row(&store, "f1", "run-1", 10);
         assert_eq!(store.fork("f1").unwrap_err().code(), "REWIND_STORE");
         assert!(store.fork("f2").unwrap().is_none());
@@ -959,10 +1061,10 @@ mod tests {
 
     #[test]
     fn a_column_that_is_not_json_reads_as_empty_and_the_row_still_reads() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         store.insert_event(&event("a", Some("run-1"))).unwrap();
         store
-            .with(|conn| conn.execute("update events set output = '{not json' where invocation_id = 'a'", []))
+            .write(|conn| conn.execute("update events set output = '{not json' where invocation_id = 'a'", []))
             .unwrap();
         let read = store.event("a").unwrap().unwrap();
         assert_eq!(read.output, None);
@@ -971,7 +1073,7 @@ mod tests {
 
     #[test]
     fn fork_and_check_numbers_count_up_on_their_own() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         assert_eq!(store.next_fork_number().unwrap(), 1);
         assert_eq!(store.next_fork_number().unwrap(), 2);
         assert_eq!(store.next_check_number().unwrap(), 1);

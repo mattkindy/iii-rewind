@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn a_post_made_inside_a_call_is_listed_under_it_and_is_not_a_step() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         let send = call("send-1", "email::send", json!({ "to": "dana@example.com" }), 900, 400.0);
         let post = Event {
             invocation_id: "cap-1".into(),
@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn the_calls_below_a_recorded_call_are_placed_under_it() {
-        let store = Store::in_memory();
+        let store = Store::temporary();
         let send = call("send-1", "email::send", json!({ "to": "dana@example.com" }), 900, 400.0);
         let post = Event {
             function_id: "http_out POST http://127.0.0.1:49335/email".into(),

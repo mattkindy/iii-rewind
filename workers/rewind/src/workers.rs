@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn changes_in_the_window_come_back_oldest_first() {
-        let store = crate::store::Store::in_memory();
+        let store = crate::store::Store::temporary();
         let change = |at_ms: u64, worker_id: &str, event: &str| WorkerChange {
             at_ms,
             worker: "tools".into(),

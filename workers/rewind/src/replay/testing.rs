@@ -71,7 +71,7 @@ pub fn effects(list: &[&str]) -> Vec<Effect> {
 }
 
 pub fn no_runs() -> Store {
-    Store::in_memory()
+    Store::temporary()
 }
 
 pub fn event(invocation_id: &str, function_id: &str, run_id: Option<&str>, output: Value) -> Event {
@@ -97,7 +97,7 @@ pub fn event(invocation_id: &str, function_id: &str, run_id: Option<&str>, outpu
 
 /// Two runs, where only run-2 sent an invite.
 pub fn runs_where_one_sent_an_invite() -> Store {
-    let store = Store::in_memory();
+    let store = Store::temporary();
     store.insert_event(&event("run-1", "agent::run", None, json!({}))).unwrap();
     store.insert_event(&event("run-2", "agent::run", None, json!({}))).unwrap();
     let sent = json!({ "status": "accepted", "id": "msg_2" });

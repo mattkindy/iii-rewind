@@ -25,7 +25,7 @@ impl Seen {
         catalog.replace(&rows);
         Self {
             catalog,
-            store: Store::in_memory(),
+            store: Store::temporary(),
         }
     }
 

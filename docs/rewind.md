@@ -458,7 +458,11 @@ new one.
 
 `rewind::record` hands each observed call to a writer thread, which stores whatever has arrived in
 one transaction, so a burst of calls never waits on SQLite on the SDK's connection thread. Both
-databases use WAL with `synchronous = normal`, so a page reading runs never waits for a write.
+databases use WAL with `synchronous = normal`. `data/rewind.sqlite` has one connection that writes,
+shared by the writer thread and every other write, and each query takes a read connection of its
+own. Rewind keeps four read connections open and opens another when all four are busy. A query
+reads the last commit without waiting for the writer, and a slow runs list never makes the writer
+wait either.
 
 Every 10 minutes Rewind drops the calls that started more than `REWIND_KEEP_DAYS` ago, 7 by
 default, or before the newest `REWIND_KEEP_RUNS` runs of the entry function, 20000 by default. A
