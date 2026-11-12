@@ -13,7 +13,8 @@ The mechanics are in `docs/rewind.md`, and the experiments behind them in `docs/
 
 ## How it works, briefly
 
-- **Recording.** Rewind observes each function that declares effects, with `on: "complete"`. Each
+- **Recording.** Rewind observes each function that declares effects, capturing `error` as well
+  as `input` and `output`, so it hears about failed calls as well as successful ones. Each
   event has the input, the outcome and the caller's invocation id, which is enough to rebuild a
   request's tree of calls. The app's workers don't change.
 - **Replay.** Rewind starts a copy of the agent with `III_NAMESPACE=rewind-f1`. iii resolves a call

@@ -3,8 +3,8 @@
 Rewind is a Rust worker. It records calls between iii functions, and the HTTP requests that go
 around iii, replays a recorded request against the worker's own code, and lets you fork the replay
 by changing an answer. This file is the spec
-for the worker and the functions its UI calls. Facts about iii 0.25.0 come from the spike in
-`docs/spike.md`.
+for the worker and the functions its UI calls. Facts about iii come from the spikes in
+`docs/spike.md` (0.25.0) and `docs/spike-0.26.md` (0.26.0).
 
 ## Where things are
 
@@ -28,8 +28,10 @@ The worker's code is in `workers/rewind/src`.
 ## Recording
 
 Rewind lists the engine's functions with `engine::functions::list` and reads `metadata.effects`
-from each. For every function in its record list, it calls `observe` with `on: "complete"` and
-`capture: ["input", "output", "error", "caller"]`, targeting its own function `rewind::record`.
+from each. For every function in its record list, it calls `observe` with
+`capture: ["input", "output", "error", "caller", "metadata"]`, targeting its own function
+`rewind::record`. On iii 0.26 the capture also decides when an observer fires: `input` and
+`output` fire it after a successful call and `error` after a failed one, so this capture hears both.
 Every Rewind process needs a unique target id. If the engine rejects the target registration with
 `FUNCTION_NAMESPACE_CONFLICT`, Rewind exits, because its observers would otherwise deliver to
 whoever owns that id.
@@ -55,7 +57,7 @@ create table events (
 ```
 
 A run starts at a root call in `default`. A call is a root when nothing recorded called it: a
-call someone made with `iii trigger`, such as `calendar::find-slot` on its own, or a request that
+call someone made with `iii call`, such as `calendar::find-slot` on its own, or a request that
 arrived at a worker's own HTTP server. The entry function (`agent::run`) is always a root, even
 though `traffic::burst` calls it, so the agent's runs stay runs. Rewind's own functions, `engine::*`
 and functions with `metadata.internal` are never roots. A run's calls are the events whose
@@ -522,7 +524,7 @@ its input, output and error, so an id copied from the traces view finds its run.
 `entry`, the agent's runs. Every fetch the agent makes also arrives at the clock worker as an
 inbound request, so including inbound runs by default would bury the agent's runs. `all` adds the
 inbound runs, and `any` lists every root. `function_id` lists only the roots of one function, such
-as `calendar::find-slot` calls made with `iii trigger`, and `root` is ignored then. A function that
+as `calendar::find-slot` calls made with `iii call`, and `root` is ignored then. A function that
 has to start a copy of a worker takes from half a second to a few seconds longer. A fork that
 takes a spare skips that wait, but a recovery's live calls take time of their own, so callers
 should pass a timeout of about 120 s.
@@ -548,7 +550,9 @@ and lists it in `filled`. If there is no such output, the run stops at that call
 
 `rewind::changed` sends `{ kind, id }` with `kind` one of `run`, `fork`, `lost`, `code` (the id is
 the new code version) and `check` (the id is the run, and the event also has the `check` result).
-A `fork` event also has the rerun's `trace_id`.
+A `fork` event also has the rerun's `trace_id`. It is a private function that returns the event it
+is called with, so a page observes it (`iii.observe('rewind::changed', handler)` from the console)
+and Rewind calls it once per event.
 
 A run's `run` event waits for the run's calls, because in-process calls are reported in batches
 after their parent. It goes out once no call or capture for the run has arrived for 300 ms, and

@@ -13,7 +13,7 @@ has three bugs planted on purpose ([BUGS.md](BUGS.md)).
 
 ## Start it
 
-You need iii 0.25.0 (`iii update`), Node 20 or newer, `uv` (it fetches Python 3.11 for the tools),
+You need iii 0.26.0 (`iii update`), Node 20 or newer, `uv` (it fetches Python 3.11 for the tools),
 and a Rust toolchain. Then:
 
 ```bash
@@ -31,7 +31,7 @@ send the agent 40 requests:
 npm run traffic
 ```
 
-That runs `iii trigger --engine ws://127.0.0.1:49334 traffic::burst --json '{"count":40}'`. Stop
+That runs `iii call --engine ws://127.0.0.1:49334 traffic::burst --json '{"count":40}'`. Stop
 everything with `npm run stop`, which runs `iii kill --compose worker-compose.yaml`.
 
 ## What's running
@@ -136,4 +136,5 @@ and the page, and what each check covers, are in [docs/testing.md](docs/testing.
 | `workers/rewind/preload` | The preloads that record calls around iii (Node and Python) |
 | `docs/rewind.md` | How Rewind works, and every function its page calls |
 | `docs/spike.md` | What iii 0.25.0 does, measured before building |
+| `docs/spike-0.26.md` | What iii 0.26.0's observers change for Rewind, measured |
 | `docs/multi-engine.md` | What still works when the tools run on a second engine |

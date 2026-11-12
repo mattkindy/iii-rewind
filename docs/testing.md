@@ -18,7 +18,7 @@ It checks the calls around iii: a replayed fetch gets its recorded response with
 paused, the email POST is recorded under `email::send`, both bugs' function spans are there, and an
 inbound request replays. It replays a booking with the tools worker copied, where find-slot's Python
 runs in the copy and the email POST gets its recorded response, and it replays a
-`calendar::find-slot` call made with `iii trigger` as a run of its own.
+`calendar::find-slot` call made with `iii call` as a run of its own.
 
 It forks a crash with safe defaults and checks that the fork runs to a booking without stopping,
 and that a stop on `email::send` pauses it there. It checks that Rewind passes on each function's

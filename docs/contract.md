@@ -9,7 +9,7 @@ them as they were registered and never checks a call against them, so the plante
 through. `engine::functions::list` leaves them out. `engine::functions::info` returns them as
 `request_schema` and `response_schema`, with each object's keys in alphabetical order.
 
-The project runs on iii 0.25.0. The engine listens on `ws://127.0.0.1:49334`. Workers read the
+The project runs on iii 0.26.0. The engine listens on `ws://127.0.0.1:49334`. Workers read the
 engine address from `III_URL` and fall back to that address.
 
 ## Sample app
