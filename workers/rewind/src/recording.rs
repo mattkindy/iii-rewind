@@ -275,13 +275,13 @@ pub async fn confirm_target_owner(app: &App) -> std::result::Result<(), String> 
     }
 }
 
-/// With `error` captured next to `input` and `output`, the observer fires after every finished
-/// call, whether it succeeded or failed.
+/// The default capture fires on success only. With `error` next to `input` and `output`, the
+/// observer fires after every finished call, whether it succeeded or failed.
 fn observe(app: &App, function_id: &str) -> ObserverHandle {
     app.iii.observe(
         Source::function(function_id)
             .namespace(DEFAULT_NAMESPACE)
-            .capture([Capture::Input, Capture::Output, Capture::Error, Capture::Caller]),
+            .capture([Capture::Input, Capture::Output, Capture::Error, Capture::Caller, Capture::Metadata]),
         Target::function(RECORD_TARGET).namespace(DEFAULT_NAMESPACE),
     )
 }
