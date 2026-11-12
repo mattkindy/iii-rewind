@@ -1,6 +1,6 @@
-//! The version of the code under test, a short hash of the files in the target
-//! folder. Installed packages and build output are left out. A copy keeps the
-//! version it started with, so Rewind can restart it after someone edits the code.
+//! The version of the code under test, a short hash of the files in the target folder.
+//! Installed packages, build output and the files Rewind writes are left out. A copy keeps
+//! the version it started with, so Rewind can restart it after someone edits the code.
 
 use std::{
     collections::HashMap,
@@ -31,22 +31,75 @@ pub struct CodeVersion {
     pub changed_at_ms: u64,
 }
 
-fn files_under(dir: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
+/// The files Rewind writes. Reading one of its open databases drops Rewind's locks on it, and
+/// another process can then truncate the `-shm` file SQLite has mapped, a SIGBUS in Rewind.
+#[derive(Debug, Clone, Default)]
+pub struct OwnFiles {
+    /// Resolved paths. A file whose name only adds to one, such as `rewind.sqlite-wal`, counts too.
+    files: Vec<PathBuf>,
+    /// Folders where everything is Rewind's, such as saved tests.
+    folders: Vec<PathBuf>,
+}
+
+impl OwnFiles {
+    pub fn new(files: &[&Path], folders: &[&Path]) -> Self {
+        Self {
+            files: files.iter().map(|file| resolved(file)).collect(),
+            folders: folders.iter().map(|folder| resolved(folder)).collect(),
+        }
+    }
+
+    /// Whether Rewind wrote `path`, which has to be resolved already.
+    fn contains(&self, path: &Path) -> bool {
+        if self.folders.iter().any(|folder| path.starts_with(folder)) {
+            return true;
+        }
+
+        let name = path.file_name().map(|name| name.to_string_lossy()).unwrap_or_default();
+        self.files.iter().any(|file| {
+            let own_name = file.file_name().map(|name| name.to_string_lossy()).unwrap_or_default();
+            file.parent() == path.parent() && name.starts_with(own_name.as_ref())
+        })
+    }
+}
+
+/// The path with links and `..` resolved through its nearest folder that exists, so a file Rewind
+/// hasn't written yet still matches once it has.
+fn resolved(path: &Path) -> PathBuf {
+    for ancestor in path.ancestors() {
+        if let Ok(found) = ancestor.canonicalize() {
+            return found.join(path.strip_prefix(ancestor).unwrap_or(Path::new("")));
+        }
+    }
+
+    path.to_path_buf()
+}
+
+fn files_under(dir: &Path, own: &OwnFiles, out: &mut Vec<PathBuf>) -> io::Result<()> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
+        if own.contains(&path) {
+            continue;
+        }
+
         let kind = entry.file_type()?;
         if kind.is_dir() {
             let skipped = SKIPPED_DIRS.iter().any(|name| entry.file_name() == *name);
             if !skipped {
-                files_under(&path, out)?;
+                files_under(&path, own, out)?;
             }
 
             continue;
         }
 
+        if kind.is_file() {
+            out.push(path);
+            continue;
+        }
+
         // A link to a folder could loop back on itself, so only links to files are followed.
-        if kind.is_file() || (kind.is_symlink() && path.is_file()) {
+        if kind.is_symlink() && path.is_file() && !own.contains(&fs::canonicalize(&path)?) {
             out.push(path);
         }
     }
@@ -63,15 +116,17 @@ fn modified_ms(path: &Path) -> io::Result<u64> {
 }
 
 /// Hashes each file's path and contents in path order, so renaming a file changes the version too.
-pub fn read(dir: &Path) -> io::Result<CodeVersion> {
+pub fn read(dir: &Path, own: &OwnFiles) -> io::Result<CodeVersion> {
+    // Rewind's own files are found by resolved path, so a target given as `..` still leaves them out.
+    let dir = dir.canonicalize()?;
     let mut files = Vec::new();
-    files_under(dir, &mut files)?;
+    files_under(&dir, own, &mut files)?;
     files.sort();
 
     let mut hasher = Sha1::new();
     let mut changed_at_ms = 0;
     for file in &files {
-        let relative = file.strip_prefix(dir).unwrap_or(file).to_string_lossy();
+        let relative = file.strip_prefix(&dir).unwrap_or(file).to_string_lossy();
         let contents = fs::read(file)?;
         hasher.update(relative.as_bytes());
         hasher.update([0]);
@@ -99,9 +154,17 @@ const REUSE_FOR: Duration = Duration::from_millis(500);
 #[derive(Default)]
 pub struct Versions {
     read: Mutex<HashMap<PathBuf, (Instant, CodeVersion)>>,
+    own: OwnFiles,
 }
 
 impl Versions {
+    pub fn new(own: OwnFiles) -> Self {
+        Self {
+            read: Mutex::default(),
+            own,
+        }
+    }
+
     /// The folder's version as read in the last `REUSE_FOR`, or read now, off the async threads.
     pub async fn of(self: &Arc<Self>, dir: &Path) -> Result<CodeVersion> {
         if let Some(version) = self.recent(dir, Instant::now()) {
@@ -124,7 +187,7 @@ impl Versions {
     }
 
     fn read_now(&self, dir: &Path) -> io::Result<CodeVersion> {
-        let found = read(dir)?;
+        let found = read(dir, &self.own)?;
         self.read
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -195,6 +258,7 @@ pub fn start(app: &Arc<App>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{spans::Spans, store::Store};
 
     fn scratch(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("rewind-code-{name}-{}", std::process::id()));
@@ -205,33 +269,118 @@ mod tests {
         dir
     }
 
+    fn read_all(dir: &Path) -> io::Result<CodeVersion> {
+        read(dir, &OwnFiles::default())
+    }
+
+    /// Rewind's databases, capture file and saved tests, laid out inside `dir`.
+    fn own_files_in(dir: &Path) -> OwnFiles {
+        let data = dir.join("data");
+        OwnFiles::new(
+            &[&data.join("rewind.sqlite"), &data.join("spans.sqlite"), &data.join("captures.jsonl")],
+            &[&dir.join("tests").join("rewind")],
+        )
+    }
+
+    #[test]
+    fn what_rewind_writes_inside_the_target_folder_does_not_count() {
+        let dir = scratch("own");
+        let own = own_files_in(&dir);
+        let before = read(&dir, &own).unwrap().version;
+        let data = dir.join("data");
+        let store = Store::open(&data.join("rewind.sqlite")).unwrap();
+        let spans = Spans::open(&data.join("spans.sqlite")).unwrap();
+        store.set_counter("capture_offset", 1).unwrap();
+        fs::write(data.join("captures.jsonl"), "{}\n").unwrap();
+        fs::write(data.join("captures.jsonl.moved"), "{}\n").unwrap();
+        fs::create_dir_all(dir.join("tests").join("rewind")).unwrap();
+        fs::write(dir.join("tests").join("rewind").join("run-1.json"), "{}\n").unwrap();
+        std::os::unix::fs::symlink(data.join("rewind.sqlite"), dir.join("src").join("db")).unwrap();
+        assert_eq!(read(&dir.join("src").join(".."), &own).unwrap().version, before);
+
+        store.set_counter("capture_offset", 2).unwrap();
+        assert_eq!(read(&dir, &own).unwrap().version, before);
+
+        fs::write(data.join("outbox.jsonl"), "{}\n").unwrap();
+        assert_ne!(read(&dir, &own).unwrap().version, before);
+        drop((store, spans));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    // Every SQLite connection holds a read lock on this byte of the `-shm` file. A process that
+    // finds it unlocked takes the file for its own and truncates it.
+    const SHM_DEAD_MAN_SWITCH: i64 = 128;
+
+    /// Whether another process sees a lock on one byte of `path`. A forked child holds none of
+    /// this process's POSIX locks, so it sees them the way any other process would.
+    fn another_process_sees_a_lock(path: &Path, offset: i64) -> bool {
+        let path = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
+        // SAFETY: the child calls only open, fcntl and _exit, which are safe after fork.
+        unsafe {
+            let child = libc::fork();
+            if child == 0 {
+                let fd = libc::open(path.as_ptr(), libc::O_RDWR);
+                let mut lock: libc::flock = std::mem::zeroed();
+                lock.l_type = libc::F_WRLCK as libc::c_short;
+                lock.l_whence = libc::SEEK_SET as libc::c_short;
+                lock.l_start = offset;
+                lock.l_len = 1;
+                if fd < 0 || libc::fcntl(fd, libc::F_GETLK, &mut lock) != 0 {
+                    libc::_exit(2);
+                }
+
+                libc::_exit(if lock.l_type == libc::F_UNLCK as libc::c_short { 0 } else { 1 });
+            }
+
+            let mut status = 0;
+            libc::waitpid(child, &mut status, 0);
+            let seen = libc::WEXITSTATUS(status);
+            assert!(seen < 2, "the child could not read the locks on {path:?}");
+            seen == 1
+        }
+    }
+
+    #[test]
+    fn reading_a_version_keeps_rewinds_lock_on_its_database_in_the_target_folder() {
+        let dir = scratch("lock");
+        let store = Store::open(&dir.join("data").join("rewind.sqlite")).unwrap();
+        store.set_counter("capture_offset", 1).unwrap();
+        let shm = dir.join("data").join("rewind.sqlite-shm");
+        assert!(another_process_sees_a_lock(&shm, SHM_DEAD_MAN_SWITCH));
+
+        read(&dir, &own_files_in(&dir)).unwrap();
+        assert!(another_process_sees_a_lock(&shm, SHM_DEAD_MAN_SWITCH));
+        drop(store);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
     #[test]
     fn the_version_follows_the_contents() {
         let dir = scratch("contents");
-        let first = read(&dir).unwrap();
+        let first = read_all(&dir).unwrap();
         assert_eq!(first.version.len(), SHORT_LEN);
-        assert_eq!(read(&dir).unwrap(), first);
+        assert_eq!(read_all(&dir).unwrap(), first);
 
         fs::write(dir.join("src").join("worker.ts"), "export const a = 2\n").unwrap();
-        let edited = read(&dir).unwrap();
+        let edited = read_all(&dir).unwrap();
         assert_ne!(edited.version, first.version);
         assert!(edited.changed_at_ms >= first.changed_at_ms);
 
         fs::write(dir.join("src").join("worker.ts"), "export const a = 1\n").unwrap();
-        assert_eq!(read(&dir).unwrap().version, first.version);
+        assert_eq!(read_all(&dir).unwrap().version, first.version);
         fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
     fn installed_packages_and_build_output_do_not_count() {
         let dir = scratch("skipped");
-        let before = read(&dir).unwrap().version;
+        let before = read_all(&dir).unwrap().version;
         for skipped in ["node_modules/iii-sdk", ".venv/lib", "dist", "src/__pycache__"] {
             fs::create_dir_all(dir.join(skipped)).unwrap();
             fs::write(dir.join(skipped).join("file.js"), "changed\n").unwrap();
         }
 
-        assert_eq!(read(&dir).unwrap().version, before);
+        assert_eq!(read_all(&dir).unwrap().version, before);
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -265,9 +414,9 @@ mod tests {
     #[test]
     fn moving_a_file_changes_the_version() {
         let dir = scratch("moved");
-        let before = read(&dir).unwrap().version;
+        let before = read_all(&dir).unwrap().version;
         fs::rename(dir.join("src").join("worker.ts"), dir.join("worker.ts")).unwrap();
-        assert_ne!(read(&dir).unwrap().version, before);
+        assert_ne!(read_all(&dir).unwrap().version, before);
         fs::remove_dir_all(&dir).unwrap();
     }
 }

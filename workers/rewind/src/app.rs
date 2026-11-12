@@ -72,7 +72,7 @@ pub fn connect(url: &str, name: &str, namespace: Option<&str>) -> IIIClient {
 
 impl App {
     pub fn new(config: Config, iii: IIIClient, store: Store, spans: Spans, rt: Handle) -> Self {
-        let code_versions = Arc::new(Versions::default());
+        let code_versions = Arc::new(Versions::new(config.own_files()));
         Self {
             target_code: Arc::new(TargetCode::new(&config.target_dir, code_versions.clone())),
             code_versions,

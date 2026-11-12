@@ -7,6 +7,8 @@ use std::{
     time::Duration,
 };
 
+use crate::code::OwnFiles;
+
 pub struct Config {
     pub url: String,
     pub entry: String,
@@ -77,6 +79,13 @@ impl Config {
             capture_max_bytes: number("REWIND_CAPTURE_MAX_MB", CAPTURE_MAX_MB).saturating_mul(1024 * 1024),
             project_dir,
         }
+    }
+}
+
+impl Config {
+    /// Everything Rewind writes, which no code version reads, whatever folder it hashes.
+    pub fn own_files(&self) -> OwnFiles {
+        OwnFiles::new(&[&self.db_path, &self.spans_path, &self.capture_file], &[&self.tests_dir])
     }
 }
 

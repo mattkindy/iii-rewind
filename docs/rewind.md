@@ -471,6 +471,18 @@ each line, so the next line starts a new file. Rewind waits a second for a line 
 written as the file moved, reads the rest of the moved file, starts its offset over at 0, and
 deletes the moved file. If Rewind stops in between, it finishes the moved file when it starts.
 
+A code version is a hash of the files in a folder: the target folder every second, and a copied
+worker's folder before a rerun. It leaves out `node_modules`, `.venv`, `dist`, `__pycache__` and
+`.git`, and every file Rewind writes: both databases with their `-wal`, `-shm` and `-journal`
+files, the capture file and its `.moved` file, and `tests/rewind`. Rewind compares resolved paths,
+so its files stay out whatever `REWIND_TARGET_DIR` points at, `..` and links included.
+
+Reading its own database would also crash Rewind. When a process closes any descriptor of a file,
+it loses every POSIX lock it had on that file, including the ones SQLite took. After Rewind hashed
+its own `-shm` file, the next process to open the database didn't find a lock on it, decided it was
+the only connection, and truncated the file. Rewind still had the file mapped, so its next read of the
+WAL index was a SIGBUS.
+
 ## Tests
 
 `rewind::save-test` writes a fork to `tests/rewind/<name>.json`:
