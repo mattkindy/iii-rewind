@@ -35,9 +35,28 @@ containers:
       pre_run: uv venv --allow-existing --python 3.11 .venv && uv pip install --python .venv/bin/python -r requirements.txt
       pre_run_timeout: 3m
 
+  # agent::run is durable, so each run keeps a journal here, and a run cut off by a crash is
+  # started again on whichever agent is up. Durable runs wait while the journal restarts.
+  journal:
+    worker: path://./workers/journal
+    start_after: [clock]
+    restart: always
+    scripts:
+      pre_run: npm install --no-audit --no-fund
+      pre_run_timeout: 3m
+
+  # iii's queue, for `traffic::burst` with `start: "queue"`, which delivers a run again when the
+  # agent dies under it. traffic defines the queue it uses.
+  queue:
+    worker: package://queue
+    version: "0.22.2"
+    restart: always
+
+  # `npm run kill-agent` kills this worker mid-run; compose brings it back.
   agent:
     worker: path://./workers/agent
-    start_after: [clock, model, tools]
+    start_after: [clock, model, tools, journal]
+    restart: always
     scripts:
       pre_run: npm install --no-audit --no-fund
       pre_run_timeout: 3m

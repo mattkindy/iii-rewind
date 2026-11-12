@@ -133,7 +133,8 @@ async function run(input: RunInput): Promise<RunOutput> {
 
 worker.registerFunction('agent::run', run, {
   description: 'Books a meeting from a request in plain English',
-  metadata: { effects: ['writes'] },
+  // Durable, so a run cut off by this worker dying finishes on the restarted one without making its calls twice.
+  metadata: { effects: ['writes'], durable: true },
   request_format: {
     type: 'object',
     properties: {
