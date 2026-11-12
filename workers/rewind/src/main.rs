@@ -15,6 +15,7 @@ mod error;
 mod fixtures;
 mod forks;
 mod functions;
+mod idempotency;
 mod inbound;
 mod json;
 mod locks;

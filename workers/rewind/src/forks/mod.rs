@@ -280,7 +280,7 @@ pub async fn answer(
         record.auto_read = flag;
     }
 
-    let Some(step) = chosen_step(app, &need, choice, value).await? else {
+    let Some(step) = chosen_step(app, &record.run_id, &need, choice, value).await? else {
         return stop(app, record).await;
     };
     record.answers.insert(need.at(), step);
@@ -305,8 +305,9 @@ pub async fn set(app: &Arc<App>, fork_id: &str, auto: Option<bool>, stops: Optio
     run(app, record).await
 }
 
-/// The answer a choice gives the pending call, or `None` for stop.
-async fn chosen_step(app: &App, need: &Need, choice: Choice, value: Option<Value>) -> Result<Option<Step>> {
+/// The answer a choice gives the pending call, or `None` for stop. A live send goes out with the
+/// same idempotency key from every recovery or fork of `run_id`, so picking it again sends nothing new.
+async fn chosen_step(app: &App, run_id: &str, need: &Need, choice: Choice, value: Option<Value>) -> Result<Option<Step>> {
     let (worker, effects) = app.catalog.describe(&need.function_id);
     let at = need.at();
     let with = |answer: Answer, source: Source| {
@@ -321,7 +322,7 @@ async fn chosen_step(app: &App, need: &Need, choice: Choice, value: Option<Value
     };
     match choice {
         Choice::Live => Ok(Some(
-            replay::live_step(app, &at, &need.function_id, worker.clone(), effects.clone(), need.input.clone()).await,
+            replay::live_step(app, run_id, &at, &need.function_id, worker.clone(), effects.clone(), need.input.clone()).await,
         )),
         Choice::Typed => {
             let value = value.ok_or_else(|| Error::BadInput("typed needs a value".into()))?;

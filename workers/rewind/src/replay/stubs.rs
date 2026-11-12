@@ -22,6 +22,7 @@ use crate::{
     copies::ForkSpace,
     effects::Effect,
     error::{Error, Result},
+    idempotency,
     json::normalize_input,
     outside::{self, Kind},
     traces,
@@ -88,18 +89,18 @@ pub async fn stub_call(
         received: Instant::now(),
     };
     let received = made.received;
-    let (at, generation, decision) = {
+    let (at, generation, run_id, decision) = {
         let mut guard = lock(&slot);
         let session = running(&mut guard, &function_id)?;
         let (at, decision) = session.stub_reached(&app.store, &called_by, &function_id, &made);
-        (at, session.generation, decision)
+        (at, session.generation, session.run_id().to_string(), decision)
     };
 
     let reply = match decision {
         Decision::Answer(step) | Decision::Fill(step, _) => replay_step(*step).await,
         Decision::Pause(_) => return Err(paused_at(&at, &function_id).into()),
         Decision::Live => {
-            let mut step = live_step(&app, &at, &function_id, made.worker, made.effects, made.input).await;
+            let mut step = live_step(&app, &run_id, &at, &function_id, made.worker, made.effects, made.input).await;
             (step.call.trace_id, step.call.span_id) = made.span;
             step.unasked = true;
             let answer = step.call.answer.clone();
@@ -174,20 +175,26 @@ async fn replay_step(step: Step) -> Reply {
     hold.reply.into_reply()
 }
 
-pub async fn live_call(app: &App, function_id: &str, input: &Value) -> Answer {
+/// Calls the function in `default` for the call at `at` in a replay of `run_id`.
+pub async fn live_call(app: &App, run_id: &str, at: &At, function_id: &str, input: &Value) -> Answer {
     if Kind::of_id(function_id).is_request() {
         return outside::live_request(input).await;
     }
 
     let mut request = CallRequest::new(function_id, input.clone());
     request.timeout_ms = Some(LIVE_TIMEOUT_MS);
-    Answer::from_result(app.iii.call(request.namespace(DEFAULT_NAMESPACE)).await)
+    let mut request = request.namespace(DEFAULT_NAMESPACE);
+    if let Some(metadata) = idempotency::metadata(&app.catalog, run_id, at, function_id, input) {
+        request = request.metadata(metadata);
+    }
+
+    Answer::from_result(app.iii.call(request).await)
 }
 
-pub async fn live_step(app: &App, at: &At, function_id: &str, worker: String, effects: Vec<Effect>, input: Value) -> Step {
+pub async fn live_step(app: &App, run_id: &str, at: &At, function_id: &str, worker: String, effects: Vec<Effect>, input: Value) -> Step {
     let started_at_ms = now_ms();
     let clock = Instant::now();
-    let answer = live_call(app, function_id, &input).await;
+    let answer = live_call(app, run_id, at, function_id, &input).await;
     let call = Call {
         worker,
         effects,

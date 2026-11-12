@@ -63,7 +63,11 @@ that writes or can't be undone before Rewind sends it.
      recovery pauses at.
 10. **Rewind** acts on the choice and runs the recovery again from the start. A `live` choice
     calls the function in `default` from Rewind, with a 30 second timeout, before the rerun begins.
-    In the rerun the call gets the chosen answer, and the calls after it go through steps 5 to 7.
+    When the function's metadata says `idempotency_key: true`, as `email::send` does, Rewind puts
+    an `idempotency_key` in the call's metadata, the same field a durable run's steps use. The key
+    is `rewind:<run id>:<place>:<hash of the input>`, so every recovery or fork of the run that
+    sends the same input at the same place sends the same key. In the rerun the call gets the
+    chosen answer, and the calls after it go through steps 5 to 7.
 11. **Rewind** stores the recovery and calls `rewind::changed`. The page moves the run to Recovered
     and says how the group ended, such as "3/3 marked sent · 3 booked". A run that fails doesn't
     stop the others, and the page lists it with a retry at the end.
@@ -90,10 +94,17 @@ group that is partly recovered leaves the finished ones alone.
 
 Sending is up to the person:
 
-- Resend on an interrupted send can deliver it twice. Rewind sends the call without an idempotency
-  key, so `email::send` can't drop the repeat the way it does for a durable run.
-- If Rewind dies after a live send and before the rerun's result is stored, the stored recovery
-  still waits at that call, and answering it again sends it again.
+- Picking Resend or Send a second time for the same send delivers it once, when the function
+  takes an idempotency key. A person can pick it again when Rewind dies after the live send and
+  before it stores the rerun, or when the rerun fails, because the stored recovery still waits at
+  that call. A second recovery of the run, or a fork of the recovery, that reaches the same send
+  gets the same key too. `email::send` drops the repeat and returns the first send's reply.
+- A send with another input at the same place goes out, because it is another invite. A fork that
+  changed an earlier answer, or a recovery whose model took another path, can send one.
+- Resend on an interrupted send can still deliver it twice: once from the run the worker died in
+  and once from Rewind. Rewind's key never matches the one the run's own send went out with, so
+  `email::send` can't tell the two apart. Mark sent is the choice when the send probably arrived.
+- A function that takes no key sends again every time a person picks `live`.
 - Mark sent gives the run another run's reply, such as a different message id, without asking the
   provider whether the send arrived.
 - Pure, read-only and external calls run live, so the model can take the recovered run down another
@@ -125,6 +136,8 @@ Sending is up to the person:
 - `workers/rewind/src/replay/decision.rs`: `lost_call`, the `runs_live` row for recover mode, and
   `choices`, which offers `live` for every call in a recovery.
 - `workers/rewind/src/forks/mod.rs`: `start`, `answer` and `stop`.
+- `workers/rewind/src/idempotency.rs`: the key a live call sends, and `replay/stubs.rs`:
+  `live_call`, which puts it in the call's metadata.
 - `workers/rewind/ui/src/components/lostWork.tsx`: Recover all and the group decisions;
   `recoveryView.tsx`: one run's recovery; `waitingGroup.tsx` and `model/waiting.ts`: the groups and
   what each decision sends; `model/batch.ts`: four runs at a time; `model/lost.ts`: grouping

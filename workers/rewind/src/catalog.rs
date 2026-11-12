@@ -30,6 +30,8 @@ pub struct FunctionRow {
     pub declares_effects: bool,
     /// `metadata.internal`, which keeps a function off the record list and out of the runs.
     pub internal: bool,
+    /// `metadata.idempotency_key`: the function drops a call whose key it has seen before.
+    pub takes_key: bool,
 }
 
 impl FunctionRow {
@@ -37,6 +39,7 @@ impl FunctionRow {
         let effects = row["metadata"]["effects"].as_array();
         Some(Self {
             internal: row["metadata"]["internal"] == Value::Bool(true),
+            takes_key: row["metadata"]["idempotency_key"] == Value::Bool(true),
             function_id: row["function_id"].as_str()?.to_string(),
             namespace: row["namespace"]
                 .as_str()
@@ -225,6 +228,12 @@ impl Catalog {
             .map(|row| (row.worker, row.effects))
             .unwrap_or_default()
     }
+
+    /// Whether the function's metadata says it takes an idempotency key. A function missing from
+    /// the listing, such as one whose worker is restarting, gets none.
+    pub fn takes_key(&self, function_id: &str) -> bool {
+        self.get(function_id).is_some_and(|row| row.takes_key)
+    }
 }
 
 #[cfg(test)]
@@ -239,6 +248,21 @@ mod tests {
         let formats = Formats::from_info(&info);
         assert_eq!(formats.request_format, Some(request));
         assert_eq!(formats.response_format, Some(response));
+    }
+
+    #[test]
+    fn a_function_takes_a_key_only_when_its_metadata_says_true() {
+        let listed = |metadata: Value| json!({ "function_id": "email::send", "worker_name": "tools", "metadata": metadata });
+        let send = FunctionRow::from_listing(&listed(json!({ "effects": ["irreversible"], "idempotency_key": true }))).unwrap();
+        assert!(send.takes_key);
+        for other in [json!({ "effects": ["irreversible"] }), json!({ "idempotency_key": "yes" }), Value::Null] {
+            assert!(!FunctionRow::from_listing(&listed(other.clone())).unwrap().takes_key, "{other}");
+        }
+
+        let catalog = Catalog::default();
+        catalog.replace(&[send]);
+        assert!(catalog.takes_key("email::send"));
+        assert!(!catalog.takes_key("billing::charge"));
     }
 
     #[test]

@@ -371,7 +371,7 @@ miss the recording.
 
 | Choice | Allowed when | Answer |
 | --- | --- | --- |
-| `live` | effects are `pure` or `read-only`, or `external` without `irreversible`; in a recovery fork, any call, because only a person can settle the calls a recovery pauses at, the `lost` call included (a lost call that only reads never pauses, since it runs again on its own) | the function's result, called in `default` |
+| `live` | effects are `pure` or `read-only`, or `external` without `irreversible`; in a recovery fork, any call, because only a person can settle the calls a recovery pauses at, the `lost` call included (a lost call that only reads never pauses, since it runs again on its own) | the function's result, called in `default`. A function whose metadata says `idempotency_key: true` gets `rewind:<run id>:<place>:<hash of the input>` as `idempotency_key` in the call's metadata, so the same send from any fork or recovery of the run has the same key |
 | `typed` | always | the JSON the person typed |
 | `inject` | always | an error `{ code: "UNAVAILABLE", message: "injected by rewind" }` |
 | `stop` | always | deletes the fork, its namespace connection and its copy |

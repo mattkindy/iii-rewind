@@ -361,6 +361,7 @@ mod tests {
             effects: Vec::new(),
             declares_effects: true,
             internal: false,
+            takes_key: false,
         }
     }
 

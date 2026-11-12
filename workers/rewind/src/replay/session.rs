@@ -191,6 +191,11 @@ impl Session {
         self
     }
 
+    /// The recorded run this session replays, or empty for a saved test, which has none.
+    pub(super) fn run_id(&self) -> &str {
+        &self.run_id
+    }
+
     /// The calls this rerun made, in place order.
     pub fn into_steps(self) -> Vec<Step> {
         self.steps.into_values().collect()
