@@ -6,7 +6,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::{
         Arc, Mutex, MutexGuard,
-        mpsc::{self, Receiver, Sender},
+        atomic::{AtomicU64, Ordering},
     },
     thread::JoinHandle,
     time::{Duration, Instant},
@@ -16,8 +16,12 @@ use iii_sdk::{
     CallRequest, Capture, ObserverHandle, ObserverState, RegisterFunction, Source, Target,
     engine::EngineFunctions,
 };
+use serde::Serialize;
 use serde_json::{Value, json};
-use tokio::sync::Notify;
+use tokio::sync::{
+    Notify,
+    mpsc::{self, Receiver, Sender, error::TrySendError},
+};
 
 use crate::{
     app::{App, REWIND_WORKER},
@@ -34,6 +38,10 @@ const FUNCTIONS_CHANGED_TARGET: &str = "rewind::on-functions-changed";
 const RESYNC_EVERY: Duration = Duration::from_secs(10);
 // A burst delivers calls faster than one commit each, so the writer stores up to this many at once.
 const BATCH_MOST: usize = 500;
+// About a second of the writer's work and 100 MB of calls the size of the scale bench's. A longer
+// queue means the writer has fallen behind for good, and every call in it is lost if Rewind stops.
+pub const WRITER_LIMIT: usize = 20_000;
+const SAY_DROPS_EVERY: Duration = Duration::from_secs(5);
 
 #[derive(Default)]
 pub struct Recorder {
@@ -44,6 +52,16 @@ pub struct Recorder {
     /// of its own that stores it.
     writer: Mutex<Option<Sender<Event>>>,
     writing: Mutex<Option<JoinHandle<()>>>,
+    /// Calls left out since Rewind started because `WRITER_LIMIT` calls were already waiting.
+    dropped: AtomicU64,
+}
+
+/// How far behind the writer is, for `rewind::status`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct Backlog {
+    pub waiting: usize,
+    pub limit: usize,
+    pub dropped: u64,
 }
 
 impl Recorder {
@@ -68,6 +86,18 @@ impl Recorder {
 
     pub fn resync_soon(&self) {
         self.resync.notify_one();
+    }
+
+    pub fn backlog(&self) -> Backlog {
+        let waiting = guarded(&self.writer)
+            .as_ref()
+            .map(|writer| writer.max_capacity() - writer.capacity())
+            .unwrap_or(0);
+        Backlog {
+            waiting,
+            limit: WRITER_LIMIT,
+            dropped: self.dropped.load(Ordering::Relaxed),
+        }
     }
 }
 
@@ -148,14 +178,26 @@ fn record(app: &App, envelope: &Value) {
         return;
     };
 
-    if let Err(unsent) = writer.send(event) {
-        eprintln!("rewind: dropped {} because the writer has stopped", unsent.0.invocation_id);
+    hand_over(writer, &app.recorder.dropped, event);
+}
+
+/// Queues the call for the writer, or counts it as dropped when the queue is full. Waiting for
+/// room would stall the SDK's connection thread, and the engine would drop calls for every observer.
+fn hand_over(writer: &Sender<Event>, dropped: &AtomicU64, event: Event) {
+    match writer.try_send(event) {
+        Ok(()) => {}
+        Err(TrySendError::Full(_)) => {
+            dropped.fetch_add(1, Ordering::Relaxed);
+        }
+        Err(TrySendError::Closed(unsent)) => {
+            eprintln!("rewind: dropped {} because the writer has stopped", unsent.invocation_id);
+        }
     }
 }
 
 /// Hands `store` everything that has arrived since it last ran, until every sender is gone.
-fn in_batches(received: &Receiver<Event>, mut store: impl FnMut(&[Event])) {
-    while let Ok(first) = received.recv() {
+fn in_batches(received: &mut Receiver<Event>, mut store: impl FnMut(&[Event])) {
+    while let Some(first) = received.blocking_recv() {
         let mut batch = vec![first];
         while batch.len() < BATCH_MOST
             && let Ok(next) = received.try_recv()
@@ -167,7 +209,34 @@ fn in_batches(received: &Receiver<Event>, mut store: impl FnMut(&[Event])) {
     }
 }
 
-fn store_batch(app: &App, batch: &[Event]) {
+/// When to say in the log how many calls the writer has dropped: once they go up, and then no
+/// more than once every `SAY_DROPS_EVERY`, so a long burst writes a few lines.
+#[derive(Default)]
+struct DropLog {
+    said: u64,
+    at: Option<Instant>,
+}
+
+impl DropLog {
+    fn worth_saying(&mut self, dropped: u64, now: Instant) -> bool {
+        let quiet = self.at.is_none_or(|at| now.saturating_duration_since(at) >= SAY_DROPS_EVERY);
+        if dropped <= self.said || !quiet {
+            return false;
+        }
+
+        self.said = dropped;
+        self.at = Some(now);
+        true
+    }
+}
+
+fn store_batch(app: &App, batch: &[Event], drops: &mut DropLog) {
+    let dropped = app.recorder.dropped.load(Ordering::Relaxed);
+    if drops.worth_saying(dropped, Instant::now()) {
+        eprintln!("rewind: dropped {dropped} recorded calls since starting, because {WRITER_LIMIT} were already waiting to be stored");
+        app.changes.emit("recorder", &dropped.to_string());
+    }
+
     if let Err(error) = app.store.insert_events(batch) {
         eprintln!("rewind: could not store {} recorded calls: {error}", batch.len());
         return;
@@ -196,10 +265,13 @@ fn guarded<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 fn start_writer(app: &Arc<App>) {
-    let (sender, received) = mpsc::channel();
+    let (sender, mut received) = mpsc::channel(WRITER_LIMIT);
     *guarded(&app.recorder.writer) = Some(sender);
     let writer_app = app.clone();
-    let writing = std::thread::spawn(move || in_batches(&received, |batch| store_batch(&writer_app, batch)));
+    let writing = std::thread::spawn(move || {
+        let mut drops = DropLog::default();
+        in_batches(&mut received, |batch| store_batch(&writer_app, batch, &mut drops));
+    });
     *guarded(&app.recorder.writing) = Some(writing);
 }
 
@@ -421,30 +493,59 @@ mod tests {
 
     #[test]
     fn calls_that_arrive_together_are_stored_together_and_none_is_lost() {
-        let (sender, received) = mpsc::channel();
+        let (sender, mut received) = mpsc::channel(WRITER_LIMIT);
+        let dropped = AtomicU64::new(0);
         for id in 0..(BATCH_MOST + 20) {
-            sender.send(call(&format!("inv-{id}"))).unwrap();
+            hand_over(&sender, &dropped, call(&format!("inv-{id}")));
         }
 
         drop(sender);
         let mut batches = Vec::new();
-        in_batches(&received, |batch| batches.push(batch.len()));
+        in_batches(&mut received, |batch| batches.push(batch.len()));
         assert_eq!(batches, [BATCH_MOST, 20]);
+        assert_eq!(dropped.load(Ordering::Relaxed), 0);
     }
 
     #[test]
     fn a_call_sent_after_a_batch_is_stored_in_the_next_one() {
-        let (sender, received) = mpsc::channel();
+        let (sender, mut received) = mpsc::channel(WRITER_LIMIT);
         let writer = std::thread::spawn(move || {
             let mut stored = Vec::new();
-            in_batches(&received, |batch| stored.extend(batch.iter().map(|event| event.invocation_id.clone())));
+            in_batches(&mut received, |batch| stored.extend(batch.iter().map(|event| event.invocation_id.clone())));
             stored
         });
-        sender.send(call("first")).unwrap();
+        let dropped = AtomicU64::new(0);
+        hand_over(&sender, &dropped, call("first"));
         std::thread::sleep(Duration::from_millis(20));
-        sender.send(call("second")).unwrap();
+        hand_over(&sender, &dropped, call("second"));
         drop(sender);
         assert_eq!(writer.join().unwrap(), ["first", "second"]);
+    }
+
+    #[test]
+    fn a_call_that_finds_the_queue_full_is_dropped_and_counted_and_the_queued_ones_are_stored() {
+        let (sender, mut received) = mpsc::channel(2);
+        let dropped = AtomicU64::new(0);
+        for id in ["a", "b", "c", "d"] {
+            hand_over(&sender, &dropped, call(id));
+        }
+
+        drop(sender);
+        let mut stored = Vec::new();
+        in_batches(&mut received, |batch| stored.extend(batch.iter().map(|event| event.invocation_id.clone())));
+        assert_eq!(stored, ["a", "b"]);
+        assert_eq!(dropped.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn drops_are_logged_when_they_go_up_and_at_most_once_every_five_seconds() {
+        let mut log = DropLog::default();
+        let start = Instant::now();
+        assert!(!log.worth_saying(0, start));
+        assert!(log.worth_saying(3, start));
+        assert!(!log.worth_saying(9, start + Duration::from_secs(1)));
+        assert!(log.worth_saying(9, start + SAY_DROPS_EVERY));
+        assert!(!log.worth_saying(9, start + SAY_DROPS_EVERY * 3));
     }
 
     #[test]

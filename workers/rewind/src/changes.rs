@@ -1,6 +1,6 @@
 //! `rewind::changed`, the event the UI observes. Rewind calls it with `{ kind, id }` whenever a
-//! run, fork, lost run or the code under test changes, and with `{ kind: "check", id, check }` as
-//! each checked run finishes. It returns the event, so iii hands each one to every observer.
+//! run, fork, lost run, the code under test or the count of dropped calls changes, and with
+//! `{ kind: "check", id, check }` as each checked run finishes. iii hands each one to every observer.
 
 use std::sync::{Arc, OnceLock};
 
@@ -62,7 +62,7 @@ pub fn register(app: &Arc<App>) {
     let function = app.iii.register_function(
         CHANGED,
         RegisterFunction::new(|event: Value| Ok::<_, iii_sdk::Error>(event))
-            .description("Called with { kind, id } whenever a run, fork, lost run or the code under test changes, and as each checked run finishes. Observe it to get each one.")
+            .description("Called with { kind, id } whenever a run, fork, lost run, the code under test or the count of dropped calls changes, and as each checked run finishes. Observe it to get each one.")
             .metadata(json!({ "internal": true }))
             .private(),
     );

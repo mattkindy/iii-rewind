@@ -462,7 +462,24 @@ databases use WAL with `synchronous = normal`. `data/rewind.sqlite` has one conn
 shared by the writer thread and every other write, and each query takes a read connection of its
 own. Rewind keeps four read connections open and opens another when all four are busy. A query
 reads the last commit without waiting for the writer, and a slow runs list never makes the writer
-wait either.
+wait either. The writer checkpoints the WAL every 10,000 pages, about 40 MB, with a 16 MB page
+cache. At SQLite's default of 1,000 pages, half of the writer's time in a burst went to
+checkpoints, most of it in fsync.
+
+Up to 20,000 calls wait for the writer. When that many are already waiting, `rewind::record` drops
+the call and counts it, because waiting for room would stall the SDK's connection thread, and the
+engine would then drop calls for every observer. `rewind::status` returns the count as
+`recorder.dropped`, next to `recorder.waiting` and `recorder.limit`. Once Rewind has dropped a call,
+the recording menu on the page gets a dot and says how many, and Rewind's log says it at most every
+5 seconds while the count goes up. The count starts at 0 each time Rewind starts.
+
+The limit trades memory against dropped calls. A waiting call takes about 5 KB of memory at the
+size the scale bench makes, 1.5 KB of which is stored: Rewind grew from 66 MB to 328 MB when its
+writer fell 55,611 calls behind at 16,000 calls a second. So 20,000 waiting calls are about 100 MB,
+and one to two seconds of the writer's work. That covers a checkpoint or a slow commit. A queue
+that stays fuller than that means the writer has fallen behind for good, and a longer one would
+only grow memory and lose more calls if Rewind stops. The limit counts calls, so calls with bodies
+much larger than the bench's take more memory each.
 
 Every 10 minutes Rewind drops the calls that started more than `REWIND_KEEP_DAYS` ago, 7 by
 default, or before the newest `REWIND_KEEP_RUNS` runs of the entry function, 20000 by default. A
@@ -505,7 +522,7 @@ Every function takes and returns JSON. The UI only talks to Rewind through these
 
 | Function | Input | Output |
 | --- | --- | --- |
-| `rewind::status` | `{}` | `{ engine, entry, recording: [function_id], runs, inbound_runs, forks, target_code: CodeVersion \| null }` |
+| `rewind::status` | `{}` | `{ engine, entry, recording: [function_id], recorder: { waiting, limit, dropped }, runs, inbound_runs, forks, target_code: CodeVersion \| null }` |
 | `rewind::functions` | `{}` | `[{ function_id, worker, effects, recording, request_format?, response_format? }]` |
 | `rewind::record-toggle` | `{ function_id, enabled }` | the function's new row |
 | `rewind::runs` | `{ filter?: "all" \| "failed" \| "stopped", q?, limit?, root?: "entry" \| "http_in" \| "all" \| "any", function_id?, before_ms?, since_ms? }` | `[Run]` |
@@ -565,7 +582,8 @@ and lists it in `filled`. If there is no such output, the run stops at that call
 `auto` on fills calls the same way.
 
 `rewind::changed` sends `{ kind, id }` with `kind` one of `run`, `fork`, `lost`, `code` (the id is
-the new code version) and `check` (the id is the run, and the event also has the `check` result).
+the new code version), `recorder` (the id is how many calls Rewind has dropped since it started)
+and `check` (the id is the run, and the event also has the `check` result).
 A `fork` event also has the rerun's `trace_id`. It is a private function that returns the event it
 is called with, so a page observes it (`iii.observe('rewind::changed', handler)` from the console)
 and Rewind calls it once per event.

@@ -351,6 +351,7 @@ async fn status(app: Arc<App>, _: Empty) -> Result<Value> {
         "engine": app.config.url,
         "entry": app.config.entry,
         "recording": app.recorder.recording(),
+        "recorder": app.recorder.backlog(),
         "runs": app.store.count_runs(&app.config.entry)?,
         "inbound_runs": app.store.count_inbound_runs()?,
         "forks": app.store.count_forks()?,
