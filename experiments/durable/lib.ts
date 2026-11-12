@@ -19,6 +19,12 @@ export const HERE = path.dirname(fileURLToPath(import.meta.url))
 export const ENGINE_PORT = 49738
 export const ENGINE_URL = `ws://127.0.0.1:${ENGINE_PORT}`
 export const III_BIN = process.env.III_BIN ?? path.resolve(HERE, '../../.tools/iii-0.26.0/iii')
+const REPO_DIR = path.resolve(HERE, '../..')
+
+// The logs in results/ are committed, so paths in them are relative to the repo or start at ~.
+export function shownPaths(text: string): string {
+  return text.replaceAll(`${REPO_DIR}/`, '').replaceAll(homedir(), '~')
+}
 
 const started = Date.now()
 // Every child process adds an exit listener, so it is stopped when the probe ends.
@@ -112,7 +118,7 @@ export async function startProbe(name: string): Promise<Probe> {
     await sleep(100)
   }
 
-  log(`engine ${III_BIN} up on ${ENGINE_PORT}, pid ${engine.pid}`)
+  log(`engine ${shownPaths(III_BIN)} up on ${ENGINE_PORT}, pid ${engine.pid}`)
   return {
     dir,
     engine: { stop: stopper(engine), pid: engine.pid, lines: [] },
@@ -120,7 +126,7 @@ export async function startProbe(name: string): Promise<Probe> {
       const binary = queueBinary()
       writeFileSync(path.join(dir, 'queue.yaml'), config)
       const queue = spawnLogged(binary, ['--url', ENGINE_URL, '--config', 'queue.yaml'], dir, 'queue.log')
-      log(`queue worker ${binary} started, pid ${queue.pid}`)
+      log(`queue worker ${shownPaths(binary)} started, pid ${queue.pid}`)
       return { binary, stop: stopper(queue), pid: queue.pid, lines: [] }
     },
   }

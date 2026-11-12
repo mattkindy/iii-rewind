@@ -1,5 +1,5 @@
-t+   116ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/.tools/iii-0.26.0/iii up on 49738, pid 64687
-t+   126ms queue worker /Users/mattkindy/.iii/compose/packages/queue-0.22.2-aarch64-apple-darwin-246eb416a9179ed0762c36fa157a37e013eae98d5f54017af21ea29260ce8263/queue started, pid 64688
+t+   116ms engine .tools/iii-0.26.0/iii up on 49738, pid 64687
+t+   126ms queue worker ~/.iii/compose/packages/queue-0.22.2-aarch64-apple-darwin-246eb416a9179ed0762c36fa157a37e013eae98d5f54017af21ea29260ce8263/queue started, pid 64688
 t+   443ms [consumer] ROLE consumer up, pid 64689
 t+   560ms --- 1. kill: the consumer dies 1 s into a 30 s job and is back after 2 s
 t+   564ms enqueued kill on long {"messageReceiptId":"2227f804-20a5-4606-a85c-748b8bda1ad0"}

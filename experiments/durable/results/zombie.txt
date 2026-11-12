@@ -1,4 +1,4 @@
-t+  4948ms stack up with {"REWIND_DURABLE":"on","REWIND_DURABLE_METRICS":"/Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412","AGENT_III_URL":"ws://127.0.0.1:49736"}
+t+  4948ms stack up with {"REWIND_DURABLE":"on","REWIND_DURABLE_METRICS":"experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412","AGENT_III_URL":"ws://127.0.0.1:49736"}
 t+  4955ms --- zombie: the journal, the agent’s connection cut for 1.5 s while it keeps running; 40 runs, faults at [1629] ms, seed 7
 t+  6586ms proxy 49736: cut every connection, refusing new ones for 1500 ms
 t+  8087ms proxy 49736: accepting again

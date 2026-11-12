@@ -1,4 +1,4 @@
-t+  4920ms stack up with {"REWIND_DURABLE":"on","REWIND_DURABLE_METRICS":"/Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412"}
+t+  4920ms stack up with {"REWIND_DURABLE":"on","REWIND_DURABLE_METRICS":"experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412"}
 t+  4925ms --- journal-kill: the journal, journal killed once; 40 runs, faults at [1629] ms, seed 7
 t+  6707ms killed journal (pid 66384) with SIGKILL
 t+ 22597ms burst done in 17672 ms {"booked":29,"errors":5,"failed":6,"paused":0,"resumed":0,"sent":40}

@@ -8,7 +8,7 @@ import { createWriteStream, mkdirSync, rmSync } from 'node:fs'
 import { connect as tcpConnect } from 'node:net'
 import path from 'node:path'
 import type { IIIClient, ObserveSource } from 'iii-sdk'
-import { connect, HERE, III_BIN, log, sleep, waitForFunctions } from './lib.js'
+import { connect, HERE, III_BIN, log, shownPaths, sleep, waitForFunctions } from './lib.js'
 
 export const STACK_DIR = path.join(HERE, 'stack')
 export const COMPOSE_FILE = path.join(STACK_DIR, 'worker-compose.yaml')
@@ -66,7 +66,7 @@ export async function startStack(runDir: string, env: Record<string, string>): P
   await ready
   const client = connect('durable-burst', STACK_URL)
   await waitForFunctions(client, ['agent::run', 'traffic::burst', 'journal::wait', 'model::complete', 'email::send', 'engine::queue::enqueue'], 60_000)
-  log(`stack up with ${JSON.stringify(env)}`)
+  log(`stack up with ${shownPaths(JSON.stringify(env))}`)
   return {
     client,
     stop: async () => {

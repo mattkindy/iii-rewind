@@ -1,4 +1,4 @@
-t+  4931ms stack up with {"REWIND_DURABLE":"on","REWIND_DURABLE_METRICS":"/Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412"}
+t+  4931ms stack up with {"REWIND_DURABLE":"on","REWIND_DURABLE_METRICS":"experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412"}
 t+  4935ms --- recovery: the journal and its recovery, agent killed; 40 runs, faults at [1516,6416,12469] ms, seed 7
 t+  6605ms killed agent (pid 66122) with SIGKILL
 t+ 11504ms killed agent (pid 66132) with SIGKILL

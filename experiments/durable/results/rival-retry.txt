@@ -1,4 +1,4 @@
-t+  4939ms stack up with {"REWIND_DURABLE":"off","REWIND_DURABLE_METRICS":"/Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412"}
+t+  4939ms stack up with {"REWIND_DURABLE":"off","REWIND_DURABLE_METRICS":"experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412"}
 t+  4943ms --- rival-retry: today’s code with the caller starting a stopped run over, agent killed; 40 runs, faults at [1516,6416,12469] ms, seed 7
 t+  6618ms killed agent (pid 65950) with SIGKILL
 t+ 11516ms killed agent (pid 66033) with SIGKILL

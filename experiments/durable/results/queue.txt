@@ -1,4 +1,4 @@
-t+  4923ms stack up with {"REWIND_DURABLE":"on","REWIND_DURABLE_METRICS":"/Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412"}
+t+  4923ms stack up with {"REWIND_DURABLE":"on","REWIND_DURABLE_METRICS":"experiments/durable/stack/data/metrics.jsonl","MODEL_SEED":"412"}
 t+  4928ms --- queue: the journal with runs started through the queue, agent killed; 40 runs, faults at [1516,6416,12469] ms, seed 7
 t+  6602ms killed agent (pid 66237) with SIGKILL
 t+ 11491ms killed agent (pid 66282) with SIGKILL

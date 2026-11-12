@@ -1,4 +1,4 @@
-t+   111ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-a614785bc92c9e2fb/.tools/iii-0.26.0/iii up on 49738, pid 64894
+t+   111ms engine .tools/iii-0.26.0/iii up on 49738, pid 64894
 t+   438ms [callee] ROLE probe-callee up, pid 64896
 t+   460ms [flow] ROLE flow up, pid 64897
 t+   652ms --- 1. calm
