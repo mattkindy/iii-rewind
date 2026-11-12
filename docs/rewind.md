@@ -517,7 +517,8 @@ worker's copy in the fork gets the copy's answer back from a stub.
 
 `rewind::test` takes a test's name, a path from the project folder, or an absolute path, and the
 file has to be inside `tests/rewind`. A path that leads anywhere else, with `..` or through a
-link, is refused with `REWIND_BAD_INPUT`.
+link, is refused with `REWIND_BAD_INPUT`. `npm run saved-tests` calls it for every file in the
+folder and exits with 1 when any test fails.
 
 ## Functions
 

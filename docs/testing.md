@@ -61,3 +61,17 @@ The page has a mock of every `rewind::*` function, so it runs without an engine 
 a script that walks each flow against it in dark and light and saves a screenshot at each step. A
 walk fails on any page error, any `console.error` and any render error on screen.
 `workers/rewind/ui/DESIGN.md` has the commands.
+
+## Saved tests
+
+Save as test writes a fork to `tests/rewind`, and the files there are committed with the code.
+With the stack running:
+
+```bash
+npm run saved-tests
+```
+
+It replays every file in `tests/rewind` against the code on disk, one after another, and prints
+each result. A test that diverged shows the call it stopped at and each field of the input that
+changed. The command exits with 1 when any test fails. [Save as test](flows/save-as-test.md) says
+what a test compares.

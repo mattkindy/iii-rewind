@@ -9,6 +9,7 @@
     "kill-agent": "scripts/node_modules/.bin/tsx scripts/kill.ts agent",
     "kill-rewind": "scripts/node_modules/.bin/tsx scripts/kill.ts rewind",
     "check": "scripts/node_modules/.bin/tsx scripts/e2e.ts",
+    "saved-tests": "scripts/node_modules/.bin/tsx scripts/savedTests.ts",
     "stop": "iii kill --compose worker-compose.yaml"
   }
 }

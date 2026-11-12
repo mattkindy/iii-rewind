@@ -30,10 +30,12 @@ to keep the failing run as a test (job 5 in [jobs.md](../jobs.md)).
 
    A paused fork is refused with `REWIND_FORK_PAUSED`. Rewind returns the path from the project
    folder along with the test.
-3. **A person** clicks Run test, and the page calls `rewind::test` with `{ path }`. A test's name, a
-   path from the project folder and an absolute path all work, as long as the file is inside
-   `tests/rewind`. A path that leads anywhere else, with `..` or through a link, is refused with
-   `REWIND_BAD_INPUT`.
+3. **A person** clicks Run test, and the page calls `rewind::test` with `{ path }`. Or someone runs
+   `npm run saved-tests` with the stack up, which calls `rewind::test` for every file in
+   `tests/rewind` one after another, prints each result with what diverged, and exits with 1 when
+   any test fails. A test's name, a path from the project folder and an absolute path all work, as
+   long as the file is inside `tests/rewind`. A path that leads anywhere else, with `..` or through
+   a link, is refused with `REWIND_BAD_INPUT`.
 4. **Rewind** reads the file and turns each saved answer into an answer at its place. A file whose
    answers have no `input`, saved before tests compared inputs, is refused with
    `REWIND_BAD_FIXTURE` until someone saves it again or adds `"match": "function"` to each of
@@ -74,9 +76,10 @@ as they were in that rerun.
 
 ## Limits
 
-- Nothing in this repo runs `tests/rewind` in CI, and `.gitignore` leaves `/tests/` out of git, so
-  a saved test stays on the machine that saved it unless someone commits it on purpose. Running one
-  needs the stack: the engine, Rewind and a copy of the agent.
+- Saved tests are committed with the code. `.gitignore` leaves out only the test the end-to-end
+  check saves each time it runs, `tests/rewind/e2e-*.json`. Running one needs the stack: the
+  engine, Rewind and a copy of the agent. So `npm run saved-tests` runs against a stack someone
+  started with `iii compose --up`, and the repo has no CI job that runs it.
 - A test copies only the entry's worker. A call that ran in another worker's copy in the fork gets
   the copy's answer back from a stub, and the calls inside it don't happen.
 - A call whose input changes on every run, such as one that quotes the copy's own invocation id,
@@ -90,6 +93,7 @@ as they were in that rerun.
 - `workers/rewind/src/fixtures.rs`: `save`, `run`, `fixture_of`, `expect_for`, `passes`,
   `diverged`, the file name and the check that a path stays inside `tests/rewind`.
 - `workers/rewind/src/functions.rs`: `rewind::save-test` and `rewind::test`.
+- `scripts/savedTests.ts`: `npm run saved-tests`.
 - `workers/rewind/src/replay/decision.rs`: `decide`, where a saved answer comes first, and
   `OwnInputs`, which makes a test's answers match on input as well as place and function.
 - `workers/rewind/ui/src/components/saveTest.tsx`: Save as test and Run test;

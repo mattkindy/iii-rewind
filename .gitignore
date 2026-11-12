@@ -8,6 +8,9 @@ dist/
 .iii/
 .claude/
 /config/
-/tests/
+/tests/*
+!/tests/rewind/
+# The end-to-end check saves a test from whichever run it recorded, every time it runs.
+/tests/rewind/e2e-*.json
 *.log
 .DS_Store
