@@ -2,13 +2,14 @@
  * Durable runs, for a function registered with `durable: true` in its metadata. The run takes an
  * epoch from the journal worker when it starts, and every call it makes is a step, numbered in
  * the order the code starts it. A step's intent is written before it goes out, and its result is
- * written before the code sees it. When the run starts again after a crash, a step that has a
- * result returns it without calling, so the code takes the same path up to where it stopped.
+ * written before the code sees it. When the run starts again, a step that has a result returns it
+ * without calling, so the code takes the same path up to where it stopped.
  *
- * The run's id is `_workflow_id` in the input, which the queue and the journal's recovery pass
- * back. When the journal refuses a write or stays unreachable, the run stops for good: every later
- * step throws, and so does the handler, whatever the code did with the error. The rules for code
- * that runs this way are in docs/durable-execution.md.
+ * A call to `durable::wait` or `durable::sleep` is a step the journal keeps. When it has nothing
+ * to return yet, the run parks: the handler returns `{ pending: true }` at once, and the journal
+ * starts the run again once the step is resolved. The run's id is `_workflow_id` in the input.
+ * When the journal refuses a write or the run parks, every later step throws, whatever the code
+ * did with the error. The rules for durable code are in docs/durable-execution.md.
  */
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createHash, randomUUID } from 'node:crypto'
@@ -25,13 +26,67 @@ const METRICS_FILE = process.env.REWIND_DURABLE_METRICS
 
 const runs = new AsyncLocalStorage()
 
-/** A stop of the run itself, which is never saved as a step's outcome. DIVERGED also ends the run. */
+/** A stop of the run itself, which is never saved as a step's outcome. DIVERGED also ends the run, and WAITING parks it. */
 class DurableStop extends Error {
-  constructor(code, message) {
+  constructor(code, message, pending) {
     super(message.startsWith(`${code}: `) ? message : `${code}: ${message}`)
     this.name = 'DurableStop'
     this.code = code
+    this.pending = pending
   }
+}
+
+function invalid(message) {
+  const error = new TypeError(message)
+  error.code = 'INVALID_ARGUMENT'
+  return error
+}
+
+function milliseconds(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+/** What the journal keeps for each durable:: function, from the call's payload, checked before it takes a step number. */
+const PARKS = {
+  'durable::wait': (payload) => {
+    if (typeof payload?.name !== 'string' || payload.name === '') {
+      throw invalid('durable::wait needs a name, the string journal::resolve sends its value to')
+    }
+
+    if (payload.timeout_ms !== undefined && !milliseconds(payload.timeout_ms)) {
+      throw invalid('durable::wait takes timeout_ms as a number of milliseconds, 0 or more')
+    }
+
+    const { name, timeout_ms, detail, choices } = payload
+    return jsonCopy({ kind: 'wait', name, timeout_ms, detail, choices })
+  },
+  'durable::sleep': (payload) => {
+    if (!milliseconds(payload?.ms)) {
+      throw invalid('durable::sleep needs ms, a number of milliseconds, 0 or more')
+    }
+
+    return { kind: 'sleep', ms: payload.ms }
+  },
+}
+
+function parkOf(request) {
+  const park = PARKS[request.function_id]
+  if (!park) {
+    throw invalid(`there is no ${request.function_id}; durable::wait and durable::sleep are the durable functions`)
+  }
+
+  return park(request.payload)
+}
+
+function outsideRun(functionId) {
+  const error = new Error(`${functionId} only works inside a durable run, a function registered with durable: true, and this call came from outside one`)
+  error.code = 'NOT_DURABLE'
+  return error
+}
+
+/** What a parked run returns to its caller, in the words iii's harness uses for a call whose result comes later. */
+function parkedReply(workflowId, pending) {
+  return { pending: true, workflow_id: workflowId, ...(pending ? { waiting_for: pending } : {}) }
 }
 
 function jsonCopy(value) {
@@ -127,7 +182,7 @@ export function durableWorker(worker, InvocationError) {
       }
 
       if (reply?.rejected) {
-        throw new DurableStop(reply.rejected, reply.message)
+        throw new DurableStop(reply.rejected, reply.message, reply.pending)
       }
 
       return reply
@@ -144,7 +199,8 @@ export function durableWorker(worker, InvocationError) {
     }
   }
 
-  async function step(run, request) {
+  /** The next step number, and its saved outcome when an earlier execution finished it. A step that doesn't match what was saved ends the run as DIVERGED. */
+  function nextStep(run, request) {
     const n = run.next++
     if (run.stopped) {
       throw run.stopped
@@ -160,6 +216,31 @@ export function durableWorker(worker, InvocationError) {
 
     if (saved?.outcome) {
       metric({ kind: 'step', workflow_id: run.workflowId, epoch: run.epoch, step: n, function_id: request.function_id, replayed: true })
+    }
+
+    return { n, hash, saved }
+  }
+
+  /** A durable::wait or durable::sleep step. With nothing to return yet, the run parks and every later step throws WAITING. */
+  async function park(run, request) {
+    const parking = parkOf(request)
+    const { n, hash, saved } = nextStep(run, request)
+    if (saved?.outcome) {
+      return settle(saved.outcome)
+    }
+
+    const reply = await save(run, 'journal::park', { workflow_id: run.workflowId, epoch: run.epoch, step: n, function_id: request.function_id, input_hash: hash, park: parking })
+    if (reply.outcome) {
+      return settle(reply.outcome)
+    }
+
+    run.stopped ??= new DurableStop('WAITING', `${run.workflowId} is waiting at step ${reply.pending.step} (${request.function_id})`, reply.pending)
+    throw run.stopped
+  }
+
+  async function step(run, request) {
+    const { n, hash, saved } = nextStep(run, request)
+    if (saved?.outcome) {
       return settle(saved.outcome)
     }
 
@@ -229,9 +310,8 @@ export function durableWorker(worker, InvocationError) {
         throw rebuilt(claim.error, InvocationError)
       }
 
-      if (claim.status === 'paused') {
-        const { step: at, function_id: lost } = claim.pause
-        throw new DurableStop('PAUSED', `${workflowId} is paused at step ${at} (${lost}), which was in flight when its worker stopped; answer it with journal::answer`)
+      if (claim.status === 'waiting') {
+        return parkedReply(workflowId, claim.pending)
       }
 
       const run = { workflowId, epoch: claim.epoch, next: 0, saved: new Map(claim.steps.map((saved) => [saved.step, saved])), stopped: undefined }
@@ -243,6 +323,10 @@ export function durableWorker(worker, InvocationError) {
       }
 
       const stop = run.stopped
+      if (stop?.code === 'WAITING') {
+        return parkedReply(workflowId, stop.pending)
+      }
+
       if (stop && stop.code !== 'DIVERGED') {
         throw stop
       }
@@ -272,6 +356,10 @@ export function durableWorker(worker, InvocationError) {
 
   worker.call = (request) => {
     const run = runs.getStore()
+    if (request.function_id.startsWith('durable::')) {
+      return run ? park(run, request) : Promise.reject(outsideRun(request.function_id))
+    }
+
     if (!run || request.observer !== undefined || request.function_id.startsWith('journal::')) {
       return send(request)
     }

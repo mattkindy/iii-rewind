@@ -20,7 +20,7 @@ class InvocationError extends Error {
  * A worker whose journal starts from `claim` and whose callees return what `answers` says. Like
  * the SDK's, its `call` and `registerFunction` are properties of the instance, not methods.
  */
-function fakeWorker({ claim = { status: 'running', epoch: 1, steps: [] }, answers = {}, reject = {} } = {}) {
+function fakeWorker({ claim = { status: 'running', epoch: 1, steps: [] }, answers = {}, reject = {}, park = (payload) => ({ pending: { step: payload.step, function_id: payload.function_id, kind: payload.park.kind } }) } = {}) {
   const sent = []
   const journal = []
   const handlers = new Map()
@@ -39,6 +39,10 @@ function fakeWorker({ claim = { status: 'running', epoch: 1, steps: [] }, answer
 
         if (request.function_id === 'journal::begin') {
           return claim
+        }
+
+        if (request.function_id === 'journal::park') {
+          return park(request.payload)
         }
 
         return request.function_id === 'journal::intent' && request.payload.function_id === 'email::send' ? { idempotency_key: `wf:${request.payload.step}` } : { saved: true }
@@ -143,5 +147,116 @@ describe('durable runs in the preload', () => {
   it('hashes two inputs that are the same JSON the same, whatever order their keys were written in', () => {
     assert.equal(inputHash({ a: 1, b: { c: [1, { d: 2, e: 3 }] } }), inputHash({ b: { c: [1, { e: 3, d: 2 }] }, a: 1 }))
     assert.notEqual(inputHash({ a: 1 }), inputHash({ a: '1' }))
+  })
+})
+
+/** Reads the time, waits for approval with a timeout, and sends only when approved. */
+async function approvedBooking(worker) {
+  const { now } = await worker.call({ function_id: 'clock::now', payload: {} })
+  const decision = await worker.call({ function_id: 'durable::wait', payload: { name: 'approval', timeout_ms: 60_000 } })
+  if (decision.timed_out || !decision.value.approved) {
+    return { sent: null, now }
+  }
+
+  const sent = await worker.call({ function_id: 'email::send', payload: { to: 'dana' } })
+  return { sent: sent.id, now }
+}
+
+describe('waits and sleeps in the preload', () => {
+  it('parks the run at a wait with nothing to return: the handler returns pending, sends nothing after it, and never finishes', async () => {
+    const { worker, sent, journal, invoke } = fakeWorker({ answers: ANSWERS })
+    worker.registerFunction('agent::run', () => approvedBooking(worker), { metadata: { durable: true } })
+    assert.deepEqual(await invoke('agent::run', { request: 'x', _workflow_id: 'wf' }), {
+      pending: true,
+      workflow_id: 'wf',
+      waiting_for: { step: 1, function_id: 'durable::wait', kind: 'wait' },
+    })
+    assert.deepEqual(sent.map((request) => request.function_id), ['clock::now'])
+    const parked = journal.find((entry) => entry.write === 'journal::park')
+    assert.deepEqual(parked.park, { kind: 'wait', name: 'approval', timeout_ms: 60_000 })
+    assert.equal(parked.input_hash, inputHash({ name: 'approval', timeout_ms: 60_000 }))
+    assert.ok(!journal.some((entry) => entry.write === 'journal::finish'))
+  })
+
+  it('gives the code the value the journal saved for a wait, and goes on to the send', async () => {
+    const steps = [
+      { step: 0, function_id: 'clock::now', input_hash: inputHash({}), outcome: { ok: true, value: { now: 'today' } } },
+      { step: 1, function_id: 'durable::wait', input_hash: inputHash({ name: 'approval', timeout_ms: 60_000 }), outcome: { ok: true, value: { timed_out: false, value: { approved: true } } } },
+    ]
+    const { worker, sent, journal, invoke } = fakeWorker({ claim: { status: 'running', epoch: 2, steps }, answers: ANSWERS })
+    worker.registerFunction('agent::run', () => approvedBooking(worker), { metadata: { durable: true } })
+    assert.deepEqual(await invoke('agent::run', { request: 'x', _workflow_id: 'wf' }), { sent: 'msg-1', now: 'today' })
+    assert.deepEqual(sent.map((request) => request.function_id), ['email::send'])
+    assert.ok(!journal.some((entry) => entry.write === 'journal::park'))
+  })
+
+  it('goes on without parking when the journal already has a value for the wait, or the timeout won', async () => {
+    const { worker, sent, invoke } = fakeWorker({ answers: ANSWERS, park: () => ({ outcome: { ok: true, value: { timed_out: true } } }) })
+    worker.registerFunction('agent::run', () => approvedBooking(worker), { metadata: { durable: true } })
+    assert.deepEqual(await invoke('agent::run', { request: 'x' }), { sent: null, now: 'today' })
+    assert.deepEqual(sent.map((request) => request.function_id), ['clock::now'])
+  })
+
+  it('returns pending without running the code when the run is already waiting', async () => {
+    const pending = { step: 1, function_id: 'durable::wait', kind: 'wait', name: 'approval' }
+    const { worker, sent, invoke } = fakeWorker({ claim: { status: 'waiting', pending }, answers: ANSWERS })
+    worker.registerFunction('agent::run', () => approvedBooking(worker), { metadata: { durable: true } })
+    assert.deepEqual(await invoke('agent::run', { request: 'x', _workflow_id: 'wf' }), { pending: true, workflow_id: 'wf', waiting_for: pending })
+    assert.deepEqual(sent, [])
+  })
+
+  it('parks the run when the journal refuses a call started beside a wait that already parked', async () => {
+    const pending = { step: 0, function_id: 'durable::sleep', kind: 'sleep' }
+    const { worker, sent, invoke } = fakeWorker({ answers: ANSWERS, reject: { 'journal::intent': { rejected: 'WAITING', message: 'WAITING: wf is waiting at step 0', pending } } })
+    worker.registerFunction(
+      'agent::run',
+      async () => Promise.all([worker.call({ function_id: 'durable::sleep', payload: { ms: 1_000 } }), worker.call({ function_id: 'clock::now', payload: {} })]),
+      { metadata: { durable: true } },
+    )
+    assert.deepEqual(await invoke('agent::run', { request: 'x', _workflow_id: 'wf' }), { pending: true, workflow_id: 'wf', waiting_for: pending })
+    assert.deepEqual(sent, [])
+  })
+
+  it('fails the run as DIVERGED when a wait comes back with another name', async () => {
+    const steps = [{ step: 0, function_id: 'durable::wait', input_hash: inputHash({ name: 'approval' }), outcome: { ok: true, value: { timed_out: false, value: 1 } } }]
+    const { worker, journal, invoke } = fakeWorker({ claim: { status: 'running', epoch: 2, steps } })
+    worker.registerFunction('agent::run', () => worker.call({ function_id: 'durable::wait', payload: { name: 'sign-off' } }), { metadata: { durable: true } })
+    await assert.rejects(invoke('agent::run', { request: 'x' }), /DIVERGED: step 0/)
+    assert.equal(journal.at(-1).outcome.error.code, 'DIVERGED')
+  })
+
+  it('throws a bad wait or sleep back to the code before it takes a step number', async () => {
+    const { worker, journal, invoke } = fakeWorker({ answers: ANSWERS })
+    worker.registerFunction(
+      'agent::run',
+      async () => {
+        const errors = []
+        for (const request of [
+          { function_id: 'durable::wait', payload: {} },
+          { function_id: 'durable::wait', payload: { name: 'a', timeout_ms: -1 } },
+          { function_id: 'durable::sleep', payload: { ms: 'soon' } },
+          { function_id: 'durable::nap', payload: {} },
+        ]) {
+          await worker.call(request).catch((error) => errors.push(error.code))
+        }
+
+        await worker.call({ function_id: 'clock::now', payload: {} })
+        return errors
+      },
+      { metadata: { durable: true } },
+    )
+    assert.deepEqual(await invoke('agent::run', { request: 'x' }), ['INVALID_ARGUMENT', 'INVALID_ARGUMENT', 'INVALID_ARGUMENT', 'INVALID_ARGUMENT'])
+    assert.equal(journal.find((entry) => entry.write === 'journal::intent').step, 0)
+  })
+
+  it('fails a wait or sleep made outside a durable run at once, without sending it', async () => {
+    const { worker, sent } = fakeWorker()
+    await assert.rejects(worker.call({ function_id: 'durable::wait', payload: { name: 'approval' } }), (error) => {
+      assert.equal(error.code, 'NOT_DURABLE')
+      assert.match(error.message, /durable::wait only works inside a durable run/)
+      return true
+    })
+    await assert.rejects(worker.call({ function_id: 'durable::sleep', payload: { ms: 10 } }), /only works inside a durable run/)
+    assert.deepEqual(sent, [])
   })
 })
