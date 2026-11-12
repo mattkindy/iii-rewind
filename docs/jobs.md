@@ -19,7 +19,9 @@ Ordered by how often they come up.
 4. **Check my fix.** When I've changed the code, I want to run it against the failing request, and
    then against every recorded run that failed the same way. That way I know it's fixed and
    nothing near it broke.
-5. **Keep it fixed.** When the fix works, I want the failing run saved as a test that CI replays.
+5. **Keep it fixed.** When the fix works, I want the failing run saved as a test, so that a later
+   change that breaks it again fails `npm run saved-tests`, which replays every saved test against
+   a running stack.
 6. **Finish work a crash left behind.** When a worker died mid-request, I want to see which
    requests were interrupted and finish them, without sending anything twice.
 7. **See what a change would change.** Before shipping a worker, I want to replay recent traffic
@@ -84,7 +86,8 @@ The flow is done when the person knows whether that answer was the cause.
 4. **Run new calls live** checks the group again, this time running the new calls whose effects
    allow it. An irreversible call never runs; it gets a recorded success from another run, and the
    result says so. The results now read as outcomes, such as "9 now book, 3 fail on another bug".
-5. **Save as test** writes the run, its answers and the new expected outcome to `tests/rewind/`.
+5. **Save as test** writes the run's input, what each call sent and got back, and the new expected
+   outcome to `tests/rewind/`.
 
 The flow is done when every run in the group comes back fixed and the test is saved.
 
