@@ -1,0 +1,24 @@
+t+  212ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-ae6cb5a9332967843/.tools/iii-0.26.0/iii up on 49834, pid 98715
+t+  371ms CALL sent, routed through the engine
+t+  378ms HANDLER start routed
+t+ 1879ms HANDLER end routed
+t+ 1880ms HOOK match for observer d9e53115 on routed: call has function_id, invocation_id, status, input, output, caller; status success
+t+ 1880ms HOOK match for observer f7a49612 on routed: call has function_id, invocation_id, status, input, output, caller; status success
+t+ 1880ms HOOK match for observer 4b2bc3c9 on routed: call has function_id, invocation_id, status, input, output, caller; status success
+t+ 1881ms CALL answered {"done":"routed"}
+t+ 1882ms EVENT input-error: status success, started_at_ms 1794456061866, duration_ms 1505, fields observer_id, activation_id, function_id, namespace, invocation_id, status, input, started_at_ms, duration_ms
+t+ 1882ms EVENT input: status success, started_at_ms 1794456061866, duration_ms 1505, fields observer_id, activation_id, function_id, namespace, invocation_id, status, input, started_at_ms, duration_ms
+t+ 1882ms EVENT default: status success, started_at_ms 1794456061866, duration_ms 1505, fields observer_id, activation_id, function_id, namespace, invocation_id, status, input, output, caller, started_at_ms, duration_ms
+t+ 2383ms CALL sent from the owner itself, in-process
+t+ 2383ms HANDLER start local
+t+ 3884ms HANDLER end local
+t+ 3884ms HOOK match for observer d9e53115 on local: call has function_id, invocation_id, status, input, output, caller; status success
+t+ 3884ms HOOK match for observer f7a49612 on local: call has function_id, invocation_id, status, input, output, caller; status success
+t+ 3884ms HOOK match for observer 4b2bc3c9 on local: call has function_id, invocation_id, status, input, output, caller; status success
+t+ 3885ms CALL answered {"done":"local"}
+t+ 3893ms EVENT input-error: status success, started_at_ms 1794456063874, duration_ms 1501, fields observer_id, activation_id, function_id, namespace, invocation_id, status, input, started_at_ms, duration_ms
+t+ 3893ms EVENT default: status success, started_at_ms 1794456063874, duration_ms 1501, fields observer_id, activation_id, function_id, namespace, invocation_id, status, input, output, caller, started_at_ms, duration_ms
+t+ 3893ms EVENT input: status success, started_at_ms 1794456063874, duration_ms 1501, fields observer_id, activation_id, function_id, namespace, invocation_id, status, input, started_at_ms, duration_ms
+t+ 5387ms observe with on: "start" refused {"code":"INVALID_ARGS","message":"observe: `source.on` was removed: `source.capture` decides which outcomes fire the target and what it receives"}
+t+ 5387ms observe with capture ["caller"] refused {"code":"INVALID_ARGS","message":"`source.capture` must name at least one of `input`, `output`, `error` (or be `[]`): `caller` and `metadata` alone fire on nothing"}
+t+ 5388ms engine-hosted event sources ["configuration::on-updated","engine::on-functions-changed","engine::on-observers-changed","engine::on-workers-changed","iii-telemetry::on-harness-usage","iii-telemetry::on-identify","iii-telemetry::on-onboarding-step","observability::on-log","observability::on-span"]

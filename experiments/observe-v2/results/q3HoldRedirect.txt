@@ -1,0 +1,29 @@
+t+  106ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-ae6cb5a9332967843/.tools/iii-0.26.0/iii up on 49834, pid 9012
+t+  230ms CALL pass
+t+  232ms HANDLER side effect: charged order o-pass
+t+  232ms HOOK deliver for o-pass (mode pass): handler output {"charged":true,"order":"o-pass"}, 2 observers matched
+t+  233ms CALL pass answered after 3 ms {"charged":true,"order":"o-pass"}
+t+  535ms CALL hold
+t+  535ms HANDLER side effect: charged order o-hold
+t+  535ms HOOK deliver for o-hold (mode hold): handler output {"charged":true,"order":"o-hold"}, 2 observers matched
+t+ 2538ms HOOK deliver for o-hold: done holding
+t+ 2538ms CALL hold answered after 2003 ms {"charged":true,"order":"o-hold"}
+t+ 2838ms CALL redirect
+t+ 2839ms HANDLER side effect: charged order o-redirect
+t+ 2839ms HOOK deliver for o-redirect (mode redirect): handler output {"charged":true,"order":"o-redirect"}, 2 observers matched
+t+ 2839ms EVENT probe::alt got order o-redirect
+t+ 2840ms CALL redirect answered after 2 ms {"charged":false,"handled_by":"probe::alt","order":"o-redirect"}
+t+ 3141ms CALL refuse
+t+ 3141ms HANDLER side effect: charged order o-refuse
+t+ 3141ms HOOK deliver for o-refuse (mode refuse): handler output {"charged":true,"order":"o-refuse"}, 2 observers matched
+t+ 3147ms CALL refuse failed after 6 ms {"code":"invocation_failed","message":"invocation_failed: the deliver hook refused order o-refuse"}
+t+ 3447ms observer rows for probe::pay [{"id":"120cd6f5","target":{"function_id":"probe::record-pay","namespace":"default"},"state":"active","fires":0,"dropped":{}},{"id":"c0cbc353","target":{"function_id":"probe::alt","namespace":"default"},"state":"active","fires":1,"dropped":{}}]
+t+ 3448ms --- a third party that does not host probe::pay
+t+ 3448ms HANDLER side effect: charged order o-third
+t+ 3448ms HOOK deliver for o-third (mode pass): handler output {"charged":true,"order":"o-third"}, 2 observers matched
+t+ 3448ms CALL after the third party set a deliver hook answered {"charged":true,"order":"o-third"}
+t+ 3449ms third party call through its own observer failed {"code":"NOT_FUNCTION_OWNER","message":"NOT_FUNCTION_OWNER: only the worker hosting `probe::pay` calls through its observers"}
+[iii] Function registration rejected: function "probe::pay" in namespace "default" is already exported by worker 8aee1723-a71e-43d2-a766-b6706953905a. The worker stays connected and keeps serving its other functions.
+t+ 4450ms HANDLER side effect: charged order o-rival
+t+ 4450ms HOOK deliver for o-rival (mode pass): handler output {"charged":true,"order":"o-rival"}, 2 observers matched
+t+ 4451ms CALL after a rival registered probe::pay answered {"charged":true,"order":"o-rival"}

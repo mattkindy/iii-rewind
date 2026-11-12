@@ -1,0 +1,9 @@
+# The probes' own engine. It listens on 49834 so it runs beside the project's stack and other
+# experiments. The grace period is 3 s instead of 30 s, so the reconnect probe can outlast it quickly.
+observers:
+  observer_grace_ms: 3000
+workers:
+  - name: iii-worker-manager
+    config:
+      host: 127.0.0.1
+      port: 49834

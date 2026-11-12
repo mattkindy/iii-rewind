@@ -1,0 +1,38 @@
+t+  110ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-ae6cb5a9332967843/.tools/iii-0.26.0/iii up on 49834, pid 16506
+t+  702ms [owner] ROLE probe-owner up, pid 16507
+t+  938ms CALL probe::slow plain
+t+  939ms HOOK middleware start probe::slow plain: input keys action, context, function_id, namespace, payload; its own caller undefined
+t+  943ms [owner] HANDLER start plain inv 1249b765-4105-4a93-85cc-6f90858a4628 at 1794456430886
+t+  946ms [owner] HANDLER end plain inv 1249b765-4105-4a93-85cc-6f90858a4628 at 1794456430890
+t+  946ms HOOK middleware end probe::slow plain
+t+  947ms EVENT recorder got plain (success), caller {"function_id":"probe::middleware","invocation_id":"98e031d3-5899-496f-94f4-b887200bce84","worker_id":"bef61364-044e-47c1-b6e3-f81f7d36113a","worker_name":"probe-middleware"}
+t+  947ms CALL plain answered after 9 ms {"answered_by":"probe-owner","label":"plain","pid":16507}
+t+ 1249ms CALL probe::app-run nested
+t+ 1250ms HOOK middleware start probe::app-run nested: input keys action, context, function_id, namespace, payload; its own caller undefined
+t+ 1250ms HOOK middleware start probe::slow nested-child: input keys action, context, function_id, namespace, payload; its own caller undefined
+t+ 1251ms [owner] HANDLER start nested-child inv 55438068-cc1c-42d2-9892-20a7f7e09f70 at 1794456431195
+t+ 1253ms [owner] HANDLER end nested-child inv 55438068-cc1c-42d2-9892-20a7f7e09f70 at 1794456431196
+t+ 1253ms HOOK middleware end probe::slow nested-child
+t+ 1253ms EVENT recorder got nested-child (success), caller {"function_id":"probe::middleware","invocation_id":"8566aade-eee1-4a50-9249-075553c3158e","worker_id":"bef61364-044e-47c1-b6e3-f81f7d36113a","worker_name":"probe-middleware"}
+t+ 1253ms HOOK middleware end probe::app-run nested
+t+ 1254ms CALL nested answered after 5 ms {"answered_by":"probe-owner","label":"nested-child","pid":16507}
+t+ 1554ms CALL probe::slow hold
+t+ 1555ms HOOK middleware start probe::slow hold: input keys action, context, function_id, namespace, payload; its own caller undefined
+t+ 3057ms HOOK middleware done holding hold
+t+ 3061ms [owner] HANDLER start hold inv 46ae12f7-6549-4de1-b01a-59b7dd252bad at 1794456433004
+t+ 3061ms [owner] HANDLER end hold inv 46ae12f7-6549-4de1-b01a-59b7dd252bad at 1794456433005
+t+ 3062ms HOOK middleware end probe::slow hold
+t+ 3063ms EVENT recorder got hold (success), caller {"function_id":"probe::middleware","invocation_id":"140f766f-50de-46e9-a06b-23fa5e067704","worker_id":"bef61364-044e-47c1-b6e3-f81f7d36113a","worker_name":"probe-middleware"}
+t+ 3063ms CALL hold answered after 1509 ms {"answered_by":"probe-owner","label":"hold","pid":16507}
+t+ 3364ms CALL probe::slow redirect
+t+ 3365ms HOOK middleware start probe::slow redirect: input keys action, context, function_id, namespace, payload; its own caller undefined
+t+ 3366ms HOOK middleware end probe::slow redirect
+t+ 3366ms CALL redirect answered after 2 ms {"handled_by":"probe::alt","label":"redirect"}
+t+ 3667ms --- the owner is killed in the middle of a forwarded call
+t+ 3667ms CALL probe::slow killed
+t+ 3667ms HOOK middleware start probe::slow killed: input keys action, context, function_id, namespace, payload; its own caller undefined
+t+ 3668ms [owner] HANDLER start killed inv fd8a2042-7d01-46f0-b3ee-22e74001ac7b at 1794456433612
+t+ 4170ms SIGKILL owner (pid 16507)
+t+ 4174ms HOOK middleware saw probe::slow killed fail; its start record is {"at":1794456433611,"function_id":"probe::slow","payload":{"hold_ms":60000,"label":"killed"}} {"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}
+t+ 4181ms CALL killed failed after 514 ms {"code":"invocation_failed","message":"invocation_failed: invocation_stopped: Invocation stopped"}
+t+ 5486ms start records the middleware wrote: 6 ["probe::slow plain","probe::app-run nested","probe::slow nested-child","probe::slow hold","probe::slow redirect","probe::slow killed"]

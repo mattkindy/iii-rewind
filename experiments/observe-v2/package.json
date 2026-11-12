@@ -1,0 +1,11 @@
+{
+  "name": "rewind-observe-v2-probes",
+  "private": true,
+  "type": "module",
+  "description": "Probes of what iii 0.26 observers do when a worker dies, when a call starts, and when a host delivers its own calls.",
+  "dependencies": {
+    "iii-sdk": "0.26.0",
+    "iii-sdk-025": "npm:iii-sdk@0.25.0",
+    "tsx": "4.19.2"
+  }
+}

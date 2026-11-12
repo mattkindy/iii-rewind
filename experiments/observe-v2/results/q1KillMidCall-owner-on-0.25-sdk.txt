@@ -1,0 +1,26 @@
+t+  106ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-ae6cb5a9332967843/.tools/iii-0.26.0/iii up on 49834, pid 15319
+t+  403ms [owner] ROLE probe-owner up, pid 15320
+t+  403ms the owner runs on SDK 0.25
+t+  527ms EVENT observers-changed {"function_id":"engine::on-workers-changed","observer_id":"3bdf9413-9eed-4cbb-80de-c1c580427456","state":"active","target":"probe::record-workers-changed"}
+t+  528ms EVENT observers-changed {"function_id":"probe::slow","observer_id":"5cb22fc4-ed05-40b7-871a-1b7ab9486566","state":"active","target":"probe::record-failures"}
+t+  528ms EVENT observers-changed {"function_id":"probe::parent","observer_id":"6661786f-99c9-40a4-a38e-38a34fe35e2e","state":"active","target":"probe::record-parent"}
+t+  528ms observers active ["44f48ea4","5cb22fc4","6661786f","5d69b2b8","3bdf9413"]
+t+  530ms EVENT workers-changed {"event":"worker_connected","worker_id":"5d5b2518-e40b-4a06-9c78-1086fe644cd6"}
+t+  530ms EVENT workers-changed {"event":"worker_metadata_updated","worker_id":"5d5b2518-e40b-4a06-9c78-1086fe644cd6"}
+t+  530ms [owner] HANDLER start control inv ebcc7c82-38b7-40ba-99b1-2895c44bb2a5 at 1794456372455
+t+  532ms [owner] HANDLER end control inv ebcc7c82-38b7-40ba-99b1-2895c44bb2a5 at 1794456372457
+t+  532ms control call {"answered_by":"probe-owner","label":"control","pid":15320}
+t+  533ms EVENT complete {"function_id":"probe::slow","status":"success","input":{"hold_ms":0,"label":"control"}}
+t+ 1036ms [owner] HANDLER start direct inv 63a744cf-f8a6-40ea-8427-adc089a89c80 at 1794456372961
+t+ 1036ms [owner] HANDLER start via-parent inv 9b944d70-9afe-4d92-be58-c6c7a3bfd7e8 at 1794456372961
+t+ 1638ms SIGKILL owner (pid 15320)
+t+ 1642ms EVENT observers-changed {"function_id":"probe::slow","observer_id":"5cb22fc4-ed05-40b7-871a-1b7ab9486566","reason":{"code":"OWNER_UNAVAILABLE","message":"no worker hosts `probe::slow` in namespace `default`"},"state":"pending","target":"probe::record-failures"}
+t+ 1642ms EVENT observers-changed {"function_id":"probe::slow","observer_id":"44f48ea4-4d9a-443c-acf8-94ffaaa6308a","reason":{"code":"OWNER_UNAVAILABLE","message":"no worker hosts `probe::slow` in namespace `default`"},"state":"pending","target":"probe::record-complete"}
+t+ 1642ms EVENT workers-changed {"event":"worker_disconnected","worker_id":"ca0cb501-47e8-4e01-aa86-97200e5bbb88"}
+t+ 1648ms direct call ERROR {"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}
+t+ 1648ms parent call ERROR {"code":"invocation_failed","message":"invocation_failed: invocation_stopped: Invocation stopped"}
+t+ 1648ms EVENT parent {"function_id":"probe::parent","status":"error","input":{"hold_ms":60000,"label":"via-parent"},"error":{"code":"invocation_failed","message":"invocation_stopped: Invocation stopped"}}
+t+11650ms events for probe::slow in the 10 s after the kill: 0
+t+11650ms events for probe::parent: 1
+t+11651ms observer rows for probe::slow [{"id":"44f48ea4","target":{"function_id":"probe::record-complete","namespace":"default"},"state":"pending","fires":1,"dropped":{"INACTIVE":2},"reason":{"code":"OWNER_UNAVAILABLE","message":"no worker hosts `probe::slow` in namespace `default`"}},{"id":"5cb22fc4","target":{"function_id":"probe::record-failures","namespace":"default"},"state":"pending","fires":0,"dropped":{"INACTIVE":2},"reason":{"code":"OWNER_UNAVAILABLE","message":"no worker hosts `probe::slow` in namespace `default`"}}]
+t+11651ms observer rows for probe::parent [{"id":"6661786f","target":{"function_id":"probe::record-parent","namespace":"default"},"state":"active","fires":1,"dropped":{}}]

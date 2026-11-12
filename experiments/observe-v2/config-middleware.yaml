@@ -1,0 +1,16 @@
+# The middleware probe's engine: the trusted listener on 49834, plus a listener on 49837 that runs
+# probe::middleware on every call made by a worker connected through it.
+workers:
+  - name: iii-worker-manager
+    config:
+      host: 127.0.0.1
+      port: 49834
+  - name: iii-worker-manager
+    config:
+      host: 127.0.0.1
+      port: 49837
+      middleware_function_id: probe::middleware
+      rbac:
+        auth_function_id: probe::auth
+        expose_functions:
+          - match: "probe::*"

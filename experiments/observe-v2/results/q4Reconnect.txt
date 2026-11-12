@@ -1,0 +1,83 @@
+t+  104ms engine /Users/mattkindy/code/iii/rewind/.claude/worktrees/agent-ae6cb5a9332967843/.tools/iii-0.26.0/iii up on 49834, pid 11791
+t+  461ms [owner] ROLE probe-owner up, pid 11792
+t+  586ms STATE recorder's handle fa5a213c: active 
+t+  588ms [owner] HANDLER start before inv 8c37a524-c399-4754-bd6e-58b886db2fc3 at 1794456314432
+t+  590ms [owner] HANDLER end before inv 8c37a524-c399-4754-bd6e-58b886db2fc3 at 1794456314433
+t+  591ms EVENT recorder got before (success)
+t+ 1092ms CHECK before: recorder got it true; handle active [{"id":"fa5a213c","target":{"function_id":"probe::record-d","namespace":"default"},"state":"active","fires":1,"dropped":{}}]
+t+ 1092ms --- 1. the owner is killed and back after 1 s, then after 6 s
+t+ 1092ms SIGKILL owner (pid 11792)
+t+ 1095ms STATE recorder's handle fa5a213c: pending {"code":"OWNER_UNAVAILABLE","message":"no worker hosts `probe::slow` in namespace `default`"}
+t+ 2099ms rows while the owner is away for 1000 ms [{"id":"fa5a213c","target":{"function_id":"probe::record-d","namespace":"default"},"state":"pending","fires":1,"dropped":{},"reason":{"code":"OWNER_UNAVAILABLE","message":"no worker hosts `probe::slow` in namespace `default`"}}]
+t+ 2438ms [owner] ROLE probe-owner up, pid 11896
+t+ 2460ms STATE recorder's handle fa5a213c: pending 
+t+ 2462ms STATE recorder's handle fa5a213c: active 
+t+ 2843ms [owner] HANDLER start owner-back-1s inv 6f45a8e1-20c8-40c9-bb5b-cfc9697d07ff at 1794456316687
+t+ 2845ms [owner] HANDLER end owner-back-1s inv 6f45a8e1-20c8-40c9-bb5b-cfc9697d07ff at 1794456316689
+t+ 2846ms EVENT recorder got owner-back-1s (success)
+t+ 3346ms CHECK owner-back-1s: recorder got it true; handle active [{"id":"fa5a213c","target":{"function_id":"probe::record-d","namespace":"default"},"state":"active","fires":2,"dropped":{}}]
+t+ 3346ms SIGKILL owner (pid 11896)
+t+ 3349ms STATE recorder's handle fa5a213c: pending {"code":"OWNER_UNAVAILABLE","message":"no worker hosts `probe::slow` in namespace `default`"}
+t+ 9347ms rows while the owner is away for 6000 ms [{"id":"fa5a213c","target":{"function_id":"probe::record-d","namespace":"default"},"state":"pending","fires":2,"dropped":{},"reason":{"code":"OWNER_UNAVAILABLE","message":"no worker hosts `probe::slow` in namespace `default`"}}]
+t+ 9699ms [owner] ROLE probe-owner up, pid 12343
+t+ 9716ms STATE recorder's handle fa5a213c: pending 
+t+ 9717ms STATE recorder's handle fa5a213c: active 
+t+10105ms [owner] HANDLER start owner-back-6s inv 421d547a-d582-44c4-991d-8bfb73572500 at 1794456323949
+t+10105ms [owner] HANDLER end owner-back-6s inv 421d547a-d582-44c4-991d-8bfb73572500 at 1794456323949
+t+10106ms EVENT recorder got owner-back-6s (success)
+t+10607ms CHECK owner-back-6s: recorder got it true; handle active [{"id":"fa5a213c","target":{"function_id":"probe::record-d","namespace":"default"},"state":"active","fires":3,"dropped":{}}]
+t+10607ms --- 2. the recorder is cut off for 1 s, then for 6 s
+t+10607ms proxy 49835: cut every connection, refusing new ones for 1000 ms
+[iii] Reconnecting in 731ms (attempt 1)...
+t+10810ms [owner] HANDLER start during-recorder-cut-1000 inv 8d1ef1ac-4b3b-44c1-845d-9dd8ea39f43c at 1794456324654
+t+10811ms [owner] HANDLER end during-recorder-cut-1000 inv 8d1ef1ac-4b3b-44c1-845d-9dd8ea39f43c at 1794456324655
+t+10812ms while the recorder is away the recorder's handle says active [{"id":"fa5a213c","target":{"function_id":"probe::record-d","namespace":"default"},"state":"suspended","fires":3,"dropped":{},"reason":{"code":"OBSERVER_DISCONNECTED","message":"the observing worker disconnected; the observer is kept until it reattaches or the grace period ends"}}]
+[iii] WebSocket error Error: read ECONNRESET
+[iii] Reconnecting in 1980ms (attempt 2)...
+t+11609ms proxy 49835: accepting again
+t+13328ms STATE recorder's handle fa5a213c: pending 
+t+13328ms STATE recorder's handle fa5a213c: active 
+t+13348ms the engine has the recorder's observer active again; the recorder's handle says active
+t+14350ms CHECK during-recorder-cut-1000: the recorder got it after reattaching false
+t+14351ms [owner] HANDLER start recorder-back-1000 inv 1994870a-750a-4c7d-90ed-fc5a8f51966b at 1794456328195
+t+14351ms [owner] HANDLER end recorder-back-1000 inv 1994870a-750a-4c7d-90ed-fc5a8f51966b at 1794456328195
+t+14352ms EVENT recorder got recorder-back-1000 (success)
+t+14853ms CHECK recorder-back-1000: recorder got it true; handle active [{"id":"fa5a213c","target":{"function_id":"probe::record-d","namespace":"default"},"state":"active","fires":4,"dropped":{}}]
+t+14853ms proxy 49835: cut every connection, refusing new ones for 6000 ms
+[iii] Reconnecting in 824ms (attempt 1)...
+t+15056ms [owner] HANDLER start during-recorder-cut-6000 inv b2a9dc81-4eeb-49c6-938f-4b2cb6552d71 at 1794456328900
+t+15057ms [owner] HANDLER end during-recorder-cut-6000 inv b2a9dc81-4eeb-49c6-938f-4b2cb6552d71 at 1794456328901
+t+15058ms while the recorder is away the recorder's handle says active [{"id":"fa5a213c","target":{"function_id":"probe::record-d","namespace":"default"},"state":"suspended","fires":4,"dropped":{},"reason":{"code":"OBSERVER_DISCONNECTED","message":"the observing worker disconnected; the observer is kept until it reattaches or the grace period ends"}}]
+[iii] WebSocket error Error: read ECONNRESET
+[iii] Reconnecting in 1456ms (attempt 2)...
+[iii] WebSocket error Error: socket hang up
+[iii] Reconnecting in 4725ms (attempt 3)...
+t+20854ms proxy 49835: accepting again
+[iii] Observer fa5a213c-cc2c-403f-af7e-3bc800438e85: the engine disposed it while this worker was away past the grace period; observing it again
+t+21871ms STATE recorder's handle fa5a213c: pending 
+t+21872ms STATE recorder's handle fa5a213c: active 
+t+21972ms the engine has the recorder's observer active again; the recorder's handle says active
+t+22974ms CHECK during-recorder-cut-6000: the recorder got it after reattaching false
+t+23023ms [owner] HANDLER start recorder-back-6000 inv 38658e68-ba1f-4d32-a903-1ac813f033ab at 1794456336867
+t+23025ms [owner] HANDLER end recorder-back-6000 inv 38658e68-ba1f-4d32-a903-1ac813f033ab at 1794456336869
+t+23026ms EVENT recorder got recorder-back-6000 (success)
+t+23527ms CHECK recorder-back-6000: recorder got it true; handle active [{"id":"fa5a213c","target":{"function_id":"probe::record-d","namespace":"default"},"state":"active","fires":1,"dropped":{}}]
+t+23527ms --- 3. the owner connection drops in the middle of a call
+t+23527ms SIGKILL owner (pid 12343)
+t+23530ms STATE recorder's handle fa5a213c: pending {"code":"OWNER_UNAVAILABLE","message":"no worker hosts `probe::slow` in namespace `default`"}
+t+23810ms [owner] ROLE probe-owner up, pid 13206
+t+23826ms STATE recorder's handle fa5a213c: pending 
+t+23827ms STATE recorder's handle fa5a213c: active 
+t+24216ms [owner] HANDLER start in-flight inv 8166b97c-d5a2-4b4b-8ae5-c29314fc077b at 1794456338060
+t+24216ms proxy 49836: cut every connection, refusing new ones for 500 ms
+t+24216ms in-flight call ERROR {"code":"invocation_stopped","message":"invocation_stopped: Invocation stopped"}
+t+24217ms STATE recorder's handle fa5a213c: pending {"code":"OWNER_UNAVAILABLE","message":"no worker hosts `probe::slow` in namespace `default`"}
+t+24719ms proxy 49836: accepting again
+t+25270ms STATE recorder's handle fa5a213c: pending 
+t+25270ms STATE recorder's handle fa5a213c: active 
+t+27218ms [owner] HANDLER end in-flight inv 8166b97c-d5a2-4b4b-8ae5-c29314fc077b at 1794456341062
+t+30218ms CHECK in-flight: recorder got it false [{"id":"fa5a213c","target":{"function_id":"probe::record-d","namespace":"default"},"state":"active","fires":1,"dropped":{"CANCELLED":1}}]
+t+30219ms [owner] HANDLER start after-owner-blip inv 1bec628e-a3c8-4f10-aced-ff3120612d00 at 1794456344063
+t+30219ms [owner] HANDLER end after-owner-blip inv 1bec628e-a3c8-4f10-aced-ff3120612d00 at 1794456344063
+t+30220ms EVENT recorder got after-owner-blip (success)
+t+30721ms CHECK after-owner-blip: recorder got it true; handle active [{"id":"fa5a213c","target":{"function_id":"probe::record-d","namespace":"default"},"state":"active","fires":2,"dropped":{"CANCELLED":1}}]
