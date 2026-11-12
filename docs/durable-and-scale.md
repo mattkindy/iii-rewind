@@ -404,6 +404,10 @@ What this leaves uncovered:
 - A crash of the engine itself loses the observer events it had not delivered.
 - Observer drops under load (`OVERFLOW`) still happen. The start file on disk is what fills those
   gaps, because it has the call's input and the outcome the caller saw.
+- While the recorder is cut off from the engine, calls made in that window reach no observer, and
+  iii doesn't count them as drops. The recorder's own handle keeps saying `active` while the engine
+  has it `suspended`, so the recorder can't tell from its side either (`docs/spike-0.26.md`, probe
+  d). The start file covers that window as well.
 
 ### Three ways to finish an interrupted run
 
