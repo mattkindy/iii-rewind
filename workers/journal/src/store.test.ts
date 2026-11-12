@@ -69,24 +69,28 @@ describe('the journal', () => {
     assert.equal(journal.detail('wf-1')?.attempts.length, 2)
   })
 
-  it('pauses a workflow whose lost step writes, before any of its code runs again', () => {
+  it('leaves a lost step that writes pending for a person, before any of its code runs again, and sends it again when resolved with execute', () => {
     const journal = fresh()
     const epoch = epochOf(journal.begin(start()))
     journal.intent('wf-1', epoch, 0, 'billing::charge', 'h0', WRITES)
-    const paused = journal.begin(start())
-    assert.deepEqual(paused, { status: 'paused', pause: { step: 0, function_id: 'billing::charge', reason: 'lost' } })
-    assert.deepEqual(journal.answer('wf-1', 0, { again: true }), { answered: true })
+    const waiting = journal.begin(start())
+    assert.ok('status' in waiting && waiting.status === 'waiting')
+    assert.deepEqual({ ...waiting.pending, since_ms: 0 }, { step: 0, function_id: 'billing::charge', kind: 'lost', since_ms: 0 })
+    assert.equal(journal.get('wf-1')?.status, 'waiting')
+    assert.deepEqual(journal.begin(start()), waiting)
+    assert.deepEqual(journal.resolve({ workflow_id: 'wf-1', step: 0, action: 'execute' }), { resolved: true, resumed: true, step: 0 })
     const resumed = journal.begin(start())
     assert.ok('status' in resumed && resumed.status === 'running')
     assert.equal(resumed.steps[0].resume, 'again')
   })
 
-  it('takes the outcome a person gives for a lost step', () => {
+  it('takes the result a person gives for a lost step, and refuses a second resolve', () => {
     const journal = fresh()
     const epoch = epochOf(journal.begin(start()))
     journal.intent('wf-1', epoch, 0, 'billing::charge', 'h0', WRITES)
     journal.begin(start())
-    journal.answer('wf-1', 0, { outcome: { ok: true, value: { charged: true } } })
+    assert.equal(journal.resolve({ workflow_id: 'wf-1', step: 0, value: { charged: true } }).resolved, true)
+    assert.equal(journal.resolve({ workflow_id: 'wf-1', step: 0, value: { charged: false } }).resolved, false)
     const resumed = journal.begin(start())
     assert.ok('status' in resumed && resumed.status === 'running')
     assert.deepEqual(resumed.steps[0].outcome, { ok: true, value: { charged: true } })
@@ -151,6 +155,126 @@ describe('the journal', () => {
     assert.deepEqual(journal.orphans(new Set(['w-1']), 60_000), [])
     now += 2_000
     assert.deepEqual(journal.orphans(new Set(['w-1']), 60_000).map((workflow) => workflow.workflow_id), ['wf-1'])
+  })
+})
+
+describe('waits and sleeps', () => {
+  const APPROVAL = { kind: 'wait' as const, name: 'approval', detail: { to: 'dana' }, choices: [{ label: 'Approve', value: { approved: true } }] }
+
+  function waiting(): { journal: Journal; epoch: number; clock: { now: number } } {
+    const clock = { now: 1_000 }
+    opened += 1
+    const journal = new Journal(path.join(scratch, `waits-${opened}.sqlite`), () => clock.now)
+    const epoch = epochOf(journal.begin(start()))
+    journal.intent('wf-1', epoch, 0, 'clock::now', 'h0', READS)
+    journal.result('wf-1', epoch, 0, { ok: true, value: 'today' })
+    return { journal, epoch, clock }
+  }
+
+  it('leaves a wait pending with what it waits for, and gives the run its value once resolved by name', () => {
+    const { journal, epoch } = waiting()
+    const parked = journal.park('wf-1', epoch, 1, 'durable::wait', 'h1', APPROVAL)
+    assert.deepEqual(parked, {
+      pending: { step: 1, function_id: 'durable::wait', kind: 'wait', since_ms: 1_000, name: 'approval', detail: { to: 'dana' }, choices: APPROVAL.choices },
+    })
+    const listed = journal.list('waiting')
+    assert.deepEqual(listed.map((workflow) => [workflow.workflow_id, workflow.pending?.name, workflow.owner_worker_id]), [['wf-1', 'approval', null]])
+    assert.deepEqual(journal.orphans(new Set(), 60_000), [])
+    assert.deepEqual(journal.resolve({ workflow_id: 'wf-1', name: 'approval', value: { approved: true } }), { resolved: true, resumed: true, step: 1 })
+    assert.deepEqual(journal.resolve({ workflow_id: 'wf-1', name: 'approval', value: { approved: false } }), { resolved: false, resumed: false, reason: '"approval" was already resolved' })
+    assert.deepEqual(journal.orphans(new Set(), 60_000).map((workflow) => workflow.workflow_id), ['wf-1'])
+    const again = journal.begin(start())
+    assert.ok('status' in again && again.status === 'running')
+    assert.deepEqual(again.steps[1].outcome, { ok: true, value: { timed_out: false, value: { approved: true } } })
+  })
+
+  it('keeps a value sent before the run reaches its wait, and returns it there without waiting', () => {
+    const { journal, epoch } = waiting()
+    assert.deepEqual(journal.resolve({ workflow_id: 'wf-1', name: 'approval', value: { approved: true } }), { resolved: true, resumed: false })
+    assert.equal(journal.get('wf-1')?.status, 'running')
+    assert.deepEqual(journal.park('wf-1', epoch, 1, 'durable::wait', 'h1', APPROVAL), { outcome: { ok: true, value: { timed_out: false, value: { approved: true } } } })
+    assert.deepEqual(journal.park('wf-1', epoch, 2, 'durable::wait', 'h2', APPROVAL), { outcome: { ok: true, value: { timed_out: false, value: { approved: true } } } })
+    assert.equal(journal.resolve({ workflow_id: 'wf-1', name: 'approval', value: { approved: false } }).resolved, false)
+  })
+
+  it('records whichever lands first when a value races a timeout', () => {
+    const { journal, epoch, clock } = waiting()
+    journal.park('wf-1', epoch, 1, 'durable::wait', 'h1', { kind: 'wait', name: 'approval', timeout_ms: 5_000 })
+    assert.equal(journal.nextDue(), 6_000)
+    clock.now = 5_999
+    assert.deepEqual(journal.due(), [])
+    clock.now = 6_000
+    assert.deepEqual(journal.due(), ['wf-1'])
+    assert.deepEqual(journal.resolve({ workflow_id: 'wf-1', name: 'approval', value: { approved: true } }), {
+      resolved: false,
+      resumed: false,
+      reason: 'the wait for "approval" timed out first',
+    })
+    assert.equal(journal.nextDue(), null)
+    const again = journal.begin(start())
+    assert.ok('status' in again && again.status === 'running')
+    assert.deepEqual(again.steps[1].outcome, { ok: true, value: { timed_out: true } })
+  })
+
+  it('ignores the timeout of a wait resolved before it', () => {
+    const { journal, epoch, clock } = waiting()
+    journal.park('wf-1', epoch, 1, 'durable::wait', 'h1', { kind: 'wait', name: 'approval', timeout_ms: 5_000 })
+    assert.equal(journal.resolve({ workflow_id: 'wf-1', step: 1, value: 'yes' }).resolved, true)
+    clock.now = 10_000
+    assert.deepEqual(journal.due(), [])
+    assert.deepEqual(journal.detail('wf-1')?.steps[1].outcome, { ok: true, value: { timed_out: false, value: 'yes' } })
+  })
+
+  it('wakes a sleep at its time, or at once when someone resolves it', () => {
+    const { journal, epoch, clock } = waiting()
+    const parked = journal.park('wf-1', epoch, 1, 'durable::sleep', 'h1', { kind: 'sleep', ms: 10_000 })
+    assert.equal((parked as { pending: { wake_at_ms?: number } }).pending.wake_at_ms, 11_000)
+    clock.now = 11_250
+    assert.deepEqual(journal.due(), ['wf-1'])
+    assert.deepEqual(journal.detail('wf-1')?.steps[1].outcome, { ok: true, value: { slept_ms: 10_250 } })
+    const next = epochOf(journal.begin(start()))
+    journal.park('wf-1', next, 2, 'durable::sleep', 'h2', { kind: 'sleep', ms: 60_000 })
+    clock.now = 12_000
+    assert.deepEqual(journal.resolve({ workflow_id: 'wf-1', step: 2 }), { resolved: true, resumed: true, step: 2 })
+    assert.deepEqual(journal.detail('wf-1')?.steps[2].outcome, { ok: true, value: { slept_ms: 750 } })
+  })
+
+  it('refuses new steps while the run waits, and saves the result of a call that was already out', () => {
+    const { journal, epoch } = waiting()
+    journal.intent('wf-1', epoch, 1, 'model::complete', 'h1', MODEL)
+    journal.park('wf-1', epoch, 2, 'durable::wait', 'h2', APPROVAL)
+    assert.deepEqual(journal.result('wf-1', epoch, 1, { ok: true, value: 'answer' }), { saved: true })
+    const refused = journal.intent('wf-1', epoch, 3, 'email::send', 'h3', SEND) as { rejected: string; pending?: { step: number } }
+    assert.equal(refused.rejected, 'WAITING')
+    assert.equal(refused.pending?.step, 2)
+    assert.equal(journal.detail('wf-1')?.fenced.length, 0)
+    assert.equal((journal.finish('wf-1', epoch, { ok: true, value: null }) as { rejected: string }).rejected, 'WAITING')
+  })
+
+  it('fails the run as DIVERGED when a wait comes back with another name, and refuses execute on a wait', () => {
+    const { journal, epoch } = waiting()
+    journal.park('wf-1', epoch, 1, 'durable::wait', 'h1', APPROVAL)
+    assert.equal(journal.resolve({ workflow_id: 'wf-1', step: 1, action: 'execute' }).resolved, false)
+    journal.resolve({ workflow_id: 'wf-1', step: 1, value: 1 })
+    const next = epochOf(journal.begin(start()))
+    const diverged = journal.park('wf-1', next, 1, 'durable::wait', 'h-other', { kind: 'wait', name: 'other' })
+    assert.equal((diverged as { rejected: string }).rejected, 'DIVERGED')
+    assert.equal(journal.get('wf-1')?.status, 'failed')
+    assert.equal(journal.resolve({ workflow_id: 'wf-1', name: 'late', value: 1 }).resolved, false)
+  })
+
+  it('keeps pending steps and wake times across a restart of the journal', () => {
+    let now = 1_000
+    const file = path.join(scratch, 'restart.sqlite')
+    const first = new Journal(file, () => now)
+    const epoch = epochOf(first.begin(start()))
+    first.park('wf-1', epoch, 0, 'durable::sleep', 'h0', { kind: 'sleep', ms: 10_000 })
+    first.close()
+    now = 12_000
+    const second = new Journal(file, () => now)
+    assert.equal(second.nextDue(), 11_000)
+    assert.deepEqual(second.due(), ['wf-1'])
+    assert.equal(second.get('wf-1')?.status, 'running')
   })
 })
 

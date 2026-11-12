@@ -49,7 +49,7 @@ export function startRecovery(iii: IIIClient, journal: Journal, log: (line: stri
   const rerunning = new Set<string>()
   let sweeping = false
 
-  async function rerun(workflow: Workflow): Promise<void> {
+  async function rerun(workflow: Workflow, why: string): Promise<void> {
     rerunning.add(workflow.workflow_id)
     try {
       const deadline = Date.now() + WAIT_FOR_FUNCTION_MS
@@ -61,7 +61,7 @@ export function startRecovery(iii: IIIClient, journal: Journal, log: (line: stri
         await new Promise((resolve) => setTimeout(resolve, 200))
       }
 
-      log(`starting ${workflow.workflow_id} again (epoch ${workflow.epoch} was its last)`)
+      log(`starting ${workflow.workflow_id} again ${why} (epoch ${workflow.epoch} was its last)`)
       const payload = { ...(workflow.input as object), [WORKFLOW_FIELD]: workflow.workflow_id }
       await iii.call({ function_id: workflow.function_id, payload, timeoutMs: RERUN_TIMEOUT_MS })
     } catch (error) {
@@ -83,7 +83,7 @@ export function startRecovery(iii: IIIClient, journal: Journal, log: (line: stri
       const now = Date.now()
       for (const workflow of journal.orphans(live, STALE_MS)) {
         if (due(workflow, now) && !rerunning.has(workflow.workflow_id)) {
-          void rerun(workflow)
+          void rerun(workflow, 'after its worker left')
         }
       }
     } catch (error) {
@@ -111,4 +111,14 @@ export function startRecovery(iii: IIIClient, journal: Journal, log: (line: stri
   )
   iii.observe({ function_id: 'engine::on-workers-changed', capture: ['input'] }, 'journal::on-workers-changed')
   setInterval(() => void sweep(), SWEEP_MS)
+
+  return {
+    /** Starts a workflow whose pending step was resolved at once, since the queue won't deliver a run that parked and returned. */
+    resume(workflowId: string): void {
+      const workflow = journal.get(workflowId)
+      if (workflow?.status === 'running' && !rerunning.has(workflowId)) {
+        void rerun(workflow, 'now that its pending step is resolved')
+      }
+    },
+  }
 }

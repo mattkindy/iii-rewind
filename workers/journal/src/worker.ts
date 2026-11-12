@@ -3,11 +3,12 @@
  * opts in with `durable: true` in its metadata: once when the run starts, before and after each
  * call the run makes, and once when it ends. After a crash the run starts again, and for every
  * call that already finished the preload returns the saved result instead of sending the call.
+ * A run that waits or sleeps leaves its step pending here and stops, and `journal::resolve`, a
+ * wait's timeout or a sleep's wake time starts it again.
  *
- * The journal owns its data, in one SQLite file. At scale this is the transactional store behind
- * Rewind's store workers. Its functions declare no effects and are internal, so Rewind does not
- * record them. Every write comes back as `{ rejected, message }` instead of an error when the
- * journal refuses it, because the SDK turns a thrown error into `invocation_failed`.
+ * The journal owns its data, in one SQLite file. Its functions declare no effects and are
+ * internal, so Rewind does not record them. A refused write comes back as `{ rejected, message }`
+ * instead of an error, because the SDK turns a thrown error into `invocation_failed`.
  *
  * Run: III_URL=ws://127.0.0.1:49334 node --import tsx src/worker.ts
  */
@@ -15,8 +16,9 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { registerWorker } from 'iii-sdk'
 import { callees } from './callees.js'
+import { startDeadlines } from './deadlines.js'
 import { startRecovery } from './recovery.js'
-import { type Begin, Journal, type Outcome, type Status } from './store.js'
+import { type Begin, Journal, type Outcome, type Park, type Resolve, type Status } from './store.js'
 
 const ENGINE_URL = process.env.III_URL ?? 'ws://127.0.0.1:49334'
 const PROJECT_DIR = process.env.III_COMPOSE_DIR ?? path.resolve(process.cwd(), '..', '..')
@@ -32,7 +34,7 @@ function log(line: string): void {
   console.log(`journal: ${line}`)
 }
 
-// journal::wait callers, woken when their workflow finishes or pauses.
+// journal::wait callers, woken when their workflow finishes or starts waiting.
 const waiters = new Map<string, Set<() => void>>()
 
 function wake(workflowId: string): void {
@@ -57,12 +59,18 @@ function caller(): { worker_id: string | null; invocation_id: string | null } {
 
 const INTERNAL = { metadata: { internal: true } }
 
+const recovery = startRecovery(worker, journal, log)
+const deadlines = startDeadlines(journal, (workflowId) => {
+  log(`${workflowId} is due: a sleep woke or a wait timed out`)
+  recovery.resume(workflowId)
+})
+
 worker.registerFunction(
   'journal::begin',
   async (input: Omit<Begin, 'worker_id' | 'invocation_id'>) => {
     const claim = journal.begin({ ...input, ...caller() })
-    if ('status' in claim && claim.status === 'paused') {
-      log(`${input.workflow_id} paused at step ${claim.pause.step} (${claim.pause.function_id}), which was in flight and may have done its work`)
+    if ('status' in claim && claim.status === 'waiting' && claim.pending.kind === 'lost') {
+      log(`${input.workflow_id} is waiting at step ${claim.pending.step} (${claim.pending.function_id}), which was in flight and may have done its work`)
       wake(input.workflow_id)
     }
 
@@ -85,6 +93,38 @@ worker.registerFunction(
 )
 
 worker.registerFunction(
+  'journal::park',
+  async (input: Epoch & { step: number; function_id: string; input_hash: string; park: Park }) => {
+    const parked = journal.park(input.workflow_id, input.epoch, input.step, input.function_id, input.input_hash, input.park)
+    if ('pending' in parked && !('rejected' in parked)) {
+      deadlines.schedule()
+      wake(input.workflow_id)
+    }
+
+    return parked
+  },
+  { description: 'A durable::wait or durable::sleep step: its result if it has one, or the step left pending and the run waiting', ...INTERNAL },
+)
+
+worker.registerFunction(
+  'journal::resolve',
+  async (input: Resolve) => {
+    const resolution = journal.resolve(input)
+    if (resolution.resumed) {
+      recovery.resume(input.workflow_id)
+    }
+
+    deadlines.schedule()
+    return resolution
+  },
+  {
+    description:
+      'Resolves a pending step of a durable run: a wait by its name, or any step by its number. `value` is what the step returns, `error` what it throws, and `action: "execute"` sends a call a crash cut off again',
+    ...INTERNAL,
+  },
+)
+
+worker.registerFunction(
   'journal::finish',
   async (input: Epoch & { outcome: Outcome }) => {
     const saved = journal.finish(input.workflow_id, input.epoch, input.outcome)
@@ -92,13 +132,6 @@ worker.registerFunction(
     return saved
   },
   { description: 'Ends a durable run with what it returned or threw', ...INTERNAL },
-)
-
-worker.registerFunction(
-  'journal::answer',
-  async (input: { workflow_id: string; step: number; again?: boolean; outcome?: Outcome }) =>
-    journal.answer(input.workflow_id, input.step, input.outcome ? { outcome: input.outcome } : { again: true }),
-  { description: 'Answers a paused run: send the lost step again, or take the outcome given for it', ...INTERNAL },
 )
 
 worker.registerFunction(
@@ -119,20 +152,29 @@ worker.registerFunction(
     })
     return journal.get(input.workflow_id) ?? null
   },
-  { description: 'Waits until a durable run finishes, fails or pauses, for at most timeout_ms', ...INTERNAL },
+  { description: 'Waits until a durable run finishes, fails or starts waiting, for at most timeout_ms', ...INTERNAL },
 )
 
 worker.registerFunction('journal::get', async (input: { workflow_id: string }) => journal.detail(input.workflow_id) ?? null, {
-  description: "A durable run with its steps, its executions, every attempt at each step, and the writes it fenced",
+  description: 'A durable run with its steps, its executions, every attempt at each step, the values its waits got, and the writes it fenced',
   ...INTERNAL,
 })
 
 worker.registerFunction('journal::list', async (input: { status?: Status }) => journal.list(input.status), {
-  description: 'Durable runs, oldest first, optionally only those with one status',
+  description: 'Durable runs, oldest first, optionally only those with one status. A waiting run has its pending step',
   ...INTERNAL,
 })
 
-startRecovery(worker, journal, log)
+// Inside a durable run the preload handles these calls and never sends them, so a call that reaches the journal came from outside one.
+for (const functionId of ['durable::wait', 'durable::sleep']) {
+  worker.registerFunction(
+    functionId,
+    async () => {
+      throw new Error(`${functionId} only works inside a durable run: a function registered with durable: true, in a Node worker with Rewind's preload`)
+    },
+    { description: `Fails: ${functionId} only works inside a durable run, where Rewind's preload makes it a step`, ...INTERNAL },
+  )
+}
 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
