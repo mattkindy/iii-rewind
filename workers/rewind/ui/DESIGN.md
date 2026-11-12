@@ -175,6 +175,18 @@ banner states both endings, "Fork 1 returned booked · original threw SyntaxErro
 Save as test. Compare lines the two runs up call by call and marks what changed. The branch
 graph is a toggle on the switcher, for runs with forks of forks.
 
+Save as test puts the saved file's path in a panel with Run test, and running it puts Passed or
+Failed beside the path. A person runs a saved test to learn whether a change in the code broke it,
+so a test that failed because the code left the file behind says where, under the path:
+"Diverged at call 2 · model::complete". When that call sent another input, the next line says how
+many fields changed, and a small table lists each one with what the test saved and what the code
+sent, such as `today` with "2026-10-27" saved and "Friday 2026-10-30" sent. Values are one line of
+JSON, so a number sent as text keeps its quotes, and the whole value is in the tooltip. A field
+only one side has reads "Not saved" or "Not sent". The first four fields show, and the rest are
+behind Show 3 more fields. A call the file has no answer for reads "New call · the test has none
+here", and a call where the file has another function reads "The test has calendar::find-slot
+here". A test that failed for another reason says what it expected, "Expected status booked".
+
 ### Playing a run back
 
 The play button in the run's toolbar (Alt+V) puts a player in place of the call list, for the line
@@ -342,7 +354,8 @@ not send them yet. So are `Fork.auto` and `stops`, `need.reason`, `filled_from`,
 a fork stored before Rewind passed formats on don't have. An interrupted run with no `mid_call`
 reads as cut off mid-call, which is how an older core recovers every interrupted run. A fork with no
 `auto` at all comes from a core without stops, so changing a stop there only keeps it for the next
-fork. Slow functions (`fork`, `fork-set`, `replay`, `answer`, `recover`, `test`) get a 120 s
+fork. A test result's `diverged` is optional too, and without it a failed test says only what it
+expected. Slow functions (`fork`, `fork-set`, `replay`, `answer`, `recover`, `test`) get a 120 s
 timeout, and a check gets 5 s more per run.
 
 ## Working on it
@@ -358,14 +371,16 @@ The mock (`dev/mockWorker.ts` over `dev/sim.ts`) implements every `rewind::*` fu
 core's shapes, including the code additions, the live check, and forks with `auto` and stops. It
 reads each function's formats from the JSON blocks in `docs/contract.md`, with keys sorted the way
 the engine sorts them.
-`rewind-dev::configure` sets latency and failures, empties or resets the data, with
-`code_change: true` applies the demo fix for bug 1, with `undeclared` reports the functions it
-lists as having no effects, and with `answer_failures` makes that many of the next
-`rewind::answer` calls fail. A recovery or an answer takes about a second to start a copy of the
+`rewind-dev::configure` changes the mock while it runs. It sets latency and failures, and empties
+or resets the data. `code_change: true` applies the demo fix for bug 1, and `code_change:
+"weekday"` also adds the weekday to the date the model gets on its first turn, so a test saved
+before it diverges at that call. `undeclared` reports the functions it lists as having no effects,
+and `answer_failures` makes that many of the next `rewind::answer` calls fail. A recovery or an answer takes about a second to start a copy of the
 agent, then as long as the rerun's live calls, so each run takes 1 to 3 s. The mock's newest
 incident is six runs tools cut off at once: three in `email::send`, two in `calendar::find-slot`, whose recoveries pause there because tools died while running it, and one
 whose `email::send` failed with `function_not_found` because tools was already gone. The
-shoot script walks flows A to E against the mock, and D again with `email::send` undeclared, and
-the schema checks, or A, B, D and the schema checks against the core with `TARGET=core`. Against
+shoot script walks flows A to E against the mock, D again with `email::send` undeclared, a saved
+test that diverges after the code changes, and the schema checks, or A, B, D and the schema checks
+against the core with `TARGET=core`. Against
 the core, D with unknown effects needs a tools worker that registers `email::send` with
 `effects: []`.

@@ -57,8 +57,11 @@ to keep the failing run as a test (job 5 in [jobs.md](../jobs.md)).
    error message. A paused run fails as diverged. `diverged` says where: the call's `seq`,
    `function_id` and `input`, what the file has at that place under `saved`, and under
    `differences` each field of the input that changed, as a JSON pointer with the `saved` value
-   and the one the call `sent`. A call the file has no answer for has no `saved`. The page shows
-   "Test passed" or "Test failed". Rewind doesn't store a test run as a fork.
+   and the one the call `sent`. A call the file has no answer for has no `saved`. Rewind doesn't
+   store a test run as a fork.
+9. **The page** puts Passed or Failed beside the test's path. A test that diverged says at which
+   call, such as "Diverged at call 2 · model::complete", and for a call that sent another input, it
+   lists each field with what the test saved and what the code sent.
 
 ## What it guarantees and what it doesn't
 
@@ -96,6 +99,6 @@ as they were in that rerun.
 - `scripts/savedTests.ts`: `npm run saved-tests`.
 - `workers/rewind/src/replay/decision.rs`: `decide`, where a saved answer comes first, and
   `OwnInputs`, which makes a test's answers match on input as well as place and function.
-- `workers/rewind/ui/src/components/saveTest.tsx`: Save as test and Run test;
-  `runWorkspace.tsx`: saving and running; `compareView.tsx` and `forkSwitcher.tsx`: where the
-  buttons appear.
+- `workers/rewind/ui/src/components/saveTest.tsx`: Save as test, Run test and what a test that
+  diverged shows; `model/savedTests.ts`: the call and the fields it shows; `runWorkspace.tsx`:
+  saving and running; `compareView.tsx` and `forkSwitcher.tsx`: where the buttons appear.

@@ -325,17 +325,41 @@ export type ForkSetRequest = { fork_id: string; auto?: boolean; stops?: string[]
 /** `value` is the raw JSON for `typed`, not wrapped in `{ value }`. */
 export type AnswerRequest = { fork_id: string; choice: Choice; value?: unknown; auto_read?: boolean }
 
+/**
+ * One call in a saved test and the answer it gets. `input` is what the call sent when the test was
+ * saved, and a call gets the answer only when it sends the same input, unless `match` is `function`.
+ */
+export type TestAnswer = { seq: number; path?: CallPath; function_id: string; input?: unknown; match?: 'function'; answer: Answer; source: AnswerSource }
+
 export type TestFixture = {
   entry: string
   input: unknown
-  answers: { seq: number; path?: CallPath; function_id: string; answer: Answer; source: AnswerSource }[]
+  answers: TestAnswer[]
   /** A run that returned a `status` expects it; one that returned anything else expects the whole output. */
   expect: { status: unknown } | { throws: unknown } | { output: unknown }
 }
 
 export type SavedTest = { path: string; fixture: TestFixture }
 
-export type TestResult = { pass: boolean; expected: unknown; outcome: unknown }
+/** One field of a call's input, as a JSON pointer. A field only one side has leaves the other out. */
+export type InputDifference = { field: string; saved?: unknown; sent?: unknown }
+
+/**
+ * Where a test's run left its file: the call that paused it and what it sent, what the file has
+ * at that place, and each field of the input that changed. `saved` is missing when the file has
+ * no call there, and `differences` is empty when the file has another function there.
+ */
+export type TestDiverged = {
+  seq: number
+  path?: CallPath
+  function_id: string
+  input: unknown
+  saved?: { function_id: string; input?: unknown }
+  differences: InputDifference[]
+}
+
+/** `diverged` comes only from a core that compares inputs, and only when the run paused. */
+export type TestResult = { pass: boolean; expected: unknown; outcome: unknown; diverged?: TestDiverged }
 
 /**
  * What `rewind::changed` sends. A `code` event's id is the new code version. A

@@ -11,7 +11,7 @@
  * and with `auto` on it runs live when its effects allow, or gets another
  * run's newest success, and pauses only when there is none.
  */
-import type { Answer, AnswerSource, Call, Choice, ErrorValue, Fork, ForkOutcome, ForkSummary, PauseReason, WorkerChange } from '../src/client/types'
+import type { Answer, AnswerSource, Call, Choice, ErrorValue, Fork, ForkOutcome, ForkSummary, InputDifference, PauseReason, WorkerChange } from '../src/client/types'
 import { contractFormats, type Formats } from './contractFormats'
 
 export const ENTRY = 'agent::run'
@@ -131,8 +131,9 @@ function readRequest(text: string): Meeting | undefined {
   return { attendee: `${name.toLowerCase()}@example.com`, name, minutes: Number(minutes), weekday }
 }
 
+// The agent code that adds the weekday sends "Tuesday 2026-10-27", so the date is the last ten characters either way.
 function nextDate(today: string, weekday: number): string {
-  const date = new Date(`${today}T00:00:00Z`)
+  const date = new Date(`${today.slice(-10)}T00:00:00Z`)
   const daysAhead = ((weekday - date.getUTCDay() + 6) % 7) + 1
   date.setUTCDate(date.getUTCDate() + daysAhead)
   return date.toISOString().slice(0, 10)
@@ -320,18 +321,33 @@ function runTool(resolve: Resolve, name: string, args: unknown): unknown {
   }
 }
 
-/** Which version of the agent's code runs: as recorded, or with the fix for bug 1 a person makes in flow C. */
-export type AgentCode = { version: string; lenientArgs: boolean }
+/**
+ * Which version of the agent's code runs: as recorded, with the fix for bug 1 a person makes in
+ * flow C, or with that fix and the weekday added to the date the model gets on its first turn, a
+ * change that makes a saved test's model call send another input.
+ */
+export type AgentCode = { version: string; lenientArgs: boolean; weekdayInToday?: boolean }
 
 export const RECORDED_CODE: AgentCode = { version: 'a1f3c9e', lenientArgs: false }
 export const FIXED_CODE: AgentCode = { version: 'c7d2b10', lenientArgs: true }
+export const WEEKDAY_CODE: AgentCode = { version: 'e41b9d2', lenientArgs: true, weekdayInToday: true }
 
 export const UNREADABLE_ARGS = 'the arguments were not valid JSON'
+
+/** The date the model gets on its first turn, "2026-10-27", or "Tuesday 2026-10-27" with the weekday. */
+function todayFor(code: AgentCode, today: string): string {
+  if (!code.weekdayInToday) {
+    return today
+  }
+
+  const weekday = new Date(`${today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })
+  return `${weekday} ${today}`
+}
 
 export function runAgent(input: RunInput, resolve: Resolve, code: AgentCode = RECORDED_CODE): Outcome {
   try {
     const clock = valueOrCrash(resolve('clock::now', {})) as { now?: unknown }
-    const today = String(clock?.now ?? '').slice(0, 10)
+    const today = todayFor(code, String(clock?.now ?? '').slice(0, 10))
     const messages: Message[] = [{ role: 'user', content: input.request }]
     for (let turn = 1; turn <= MAX_TURNS; turn++) {
       const modelInput = turn === 1 ? { turn, today, tools: TOOLS, messages: [...messages] } : { turn, messages: [...messages] }
@@ -551,8 +567,11 @@ function lostMidCallAt(recording: Recording): number | null {
  */
 export type CallTiming = { started_at_ms?: number; duration_ms?: number }
 
-/** `unasked` marks an answer Rewind chose by itself, a live call or a filled one, which fork-set may drop. */
-export type StoredAnswer = { function_id: string; answer: Answer; source: AnswerSource; timing?: CallTiming; filled_from?: string; unasked?: boolean }
+/**
+ * `unasked` marks an answer Rewind chose by itself, a live call or a filled one, which fork-set may
+ * drop. `input` is set only in a saved test's answers, which a call gets only when it sends that input.
+ */
+export type StoredAnswer = { function_id: string; answer: Answer; source: AnswerSource; timing?: CallTiming; filled_from?: string; unasked?: boolean; input?: unknown }
 
 /** Another run's newest successful answer from a function, for a call a fork with `auto` doesn't run live. */
 export type FillSource = (functionId: string) => { answer: Answer; run_id: string } | undefined
@@ -587,6 +606,48 @@ function canonical(value: unknown): string {
 
 export function sameInput(a: unknown, b: unknown): boolean {
   return canonical(a) === canonical(b)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function collectDifferences(saved: unknown, sent: unknown, path: string, found: string[]): void {
+  if (isRecord(saved) && isRecord(sent)) {
+    for (const key of [...new Set([...Object.keys(saved), ...Object.keys(sent)])].sort()) {
+      if (key in saved && key in sent) {
+        collectDifferences(saved[key], sent[key], `${path}/${key}`, found)
+        continue
+      }
+
+      found.push(`${path}/${key}`)
+    }
+
+    return
+  }
+
+  if (Array.isArray(saved) && Array.isArray(sent) && saved.length === sent.length) {
+    saved.forEach((item, index) => collectDifferences(item, sent[index], `${path}/${index}`, found))
+    return
+  }
+
+  if (!sameInput(saved, sent)) {
+    found.push(path)
+  }
+}
+
+function at(value: unknown, pointer: string): unknown {
+  return pointer
+    .split('/')
+    .slice(1)
+    .reduce<unknown>((inside, key) => (inside !== null && typeof inside === 'object' ? (inside as Record<string, unknown>)[key] : undefined), value)
+}
+
+/** Each field of the input that changed, as the core's `json::differences` reports them, with both sides' values. */
+export function inputDifferences(saved: unknown, sent: unknown): InputDifference[] {
+  const found: string[] = []
+  collectDifferences(saved, sent, '', found)
+  return found.map((field) => ({ field, saved: at(saved, field), sent: at(sent, field) }))
 }
 
 // As the core's effects.rs: a set counts only when it is not empty and every effect in it is allowed.
@@ -685,6 +746,11 @@ function forkCall(trace: string, seq: number, functionId: string, input: unknown
   return call
 }
 
+/** A fork's own answer goes to a call of the same function. A saved test's also needs the input it was saved with, as in the core. */
+function fits(given: StoredAnswer, functionId: string, input: unknown): boolean {
+  return given.function_id === functionId && (given.input === undefined || sameInput(given.input, input))
+}
+
 export type ReplayOptions = {
   code?: AgentCode
   /** For a check: an answer for a call the fork would otherwise pause at. */
@@ -758,7 +824,7 @@ export function replayFork(fork: StoredFork, recording: Recording, random: () =>
       return answer
     }
 
-    if (given && given.function_id === functionId) {
+    if (given && fits(given, functionId, input)) {
       keep(functionId, input, given, given.source === 'recorded' ? recording.calls[seq] : undefined)
       return given.answer
     }

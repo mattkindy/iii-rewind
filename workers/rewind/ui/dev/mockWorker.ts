@@ -39,6 +39,7 @@ import type {
   RunStatus,
   SavedTest,
   Status,
+  TestDiverged,
   TestFixture,
   TestResult,
 } from '../src/client/types'
@@ -52,6 +53,7 @@ import {
   FUNCTIONS,
   forkSummary,
   functionInfo,
+  inputDifferences,
   liveAllowed,
   liveAnswer,
   liveTiming,
@@ -73,6 +75,7 @@ import {
   type StoredAnswer,
   type StoredFork,
   trafficRequest,
+  WEEKDAY_CODE,
 } from './sim'
 
 const ENGINE_URL = process.env.III_URL ?? 'ws://127.0.0.1:49634'
@@ -97,6 +100,17 @@ const WRITER_LIMIT = 20_000
 // The agent's code on disk. rewind-dev::configure { code_change: true } plays
 // a person saving the fix for bug 1, the way the core will notice a new version.
 let code: AgentCode = RECORDED_CODE
+
+/** `weekday` also adds the weekday to the model's first turn, so a test saved before it diverges there. */
+type CodeChange = true | 'weekday'
+
+function codeAfter(change: CodeChange): AgentCode {
+  if (change === 'weekday') {
+    return WEEKDAY_CODE
+  }
+
+  return FIXED_CODE
+}
 let codeChangedAt = Date.parse('2026-10-29T17:40:00-05:00')
 let recordings: Recording[] = []
 let forks = new Map<string, StoredFork>()
@@ -546,7 +560,7 @@ worker.registerFunction('rewind::save-test', async (input: { fork_id: string; na
   const fixture: TestFixture = {
     entry: ENTRY,
     input: recordingFor(fork.run_id).input,
-    answers: fork.calls.map((c) => ({ seq: c.seq, function_id: c.function_id, answer: c.answer, source: c.source })),
+    answers: fork.calls.map((c) => ({ seq: c.seq, function_id: c.function_id, input: c.input, answer: c.answer, source: c.source })),
     expect: outcome.state === 'done' ? { status: (outcome.output as { status?: unknown })?.status ?? outcome.output } : { throws: outcome.error.message },
   }
   const testPath = `tests/rewind/${name}.json`
@@ -556,10 +570,28 @@ worker.registerFunction('rewind::save-test', async (input: { fork_id: string; na
 
 type ForkStateName = Fork['outcome']['state']
 
+/** Where a paused test left its file, as the core's `fixtures::diverged` reports it. */
+function divergedAt(fixture: TestFixture, outcome: ForkOutcome): TestDiverged | undefined {
+  if (outcome.state !== 'paused') {
+    return undefined
+  }
+
+  const { need } = outcome
+  const saved = fixture.answers.find((a) => a.seq === need.seq)
+  const comparable = saved && saved.function_id === need.function_id && saved.input !== undefined
+  return {
+    seq: need.seq,
+    function_id: need.function_id,
+    input: need.input,
+    ...(saved ? { saved: { function_id: saved.function_id, input: saved.input } } : {}),
+    differences: comparable ? inputDifferences(saved.input, need.input) : [],
+  }
+}
+
 worker.registerFunction('rewind::test', async (input: { path: string }): Promise<TestResult> => {
   await running()
   const fixture = tests.get(input.path) ?? fail('REWIND_NOT_FOUND', `no test at ${input.path}`)
-  const answers = new Map(fixture.answers.map((a) => [a.seq, { function_id: a.function_id, answer: a.answer, source: a.source }]))
+  const answers = new Map(fixture.answers.map((a) => [a.seq, { function_id: a.function_id, input: a.input, answer: a.answer, source: a.source }]))
   const probe: StoredFork = { ...newFork('test', 'debug', null, null, answers), run_id: 'test' }
   forkCount -= 1
   const pseudo: Recording = { run_id: 'test', input: fixture.input as Recording['input'], started_at_ms: 0, duration_ms: 0, calls: [], outcome: { state: 'done', output: null }, scenario: 'ok', code_version: code.version }
@@ -571,7 +603,8 @@ worker.registerFunction('rewind::test', async (input: { path: string }): Promise
     crashed: () => outcome.state === 'crashed' && 'throws' in expect && outcome.error.message === expect.throws,
     paused: () => false,
   }
-  return { pass: passes[outcome.state](), expected: fixture.expect, outcome }
+  const diverged = divergedAt(fixture, outcome)
+  return { pass: passes[outcome.state](), expected: fixture.expect, outcome, ...(diverged ? { diverged } : {}) }
 })
 
 function recordedOutcome(recording: Recording): ForkOutcome {
@@ -667,7 +700,7 @@ worker.registerFunction(
     answer_failures?: number
     empty?: boolean
     reset?: boolean
-    code_change?: boolean
+    code_change?: CodeChange | false
     undeclared?: string[]
     dropped?: number
   }) => {
@@ -692,7 +725,7 @@ worker.registerFunction(
     }
 
     if (input.code_change) {
-      code = FIXED_CODE
+      code = codeAfter(input.code_change)
       codeChangedAt = Date.now()
       changed('code', code.version)
     }

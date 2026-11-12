@@ -267,6 +267,33 @@ async function flowB(page: Page, shot: Shooter): Promise<void> {
   }
 }
 
+/**
+ * A saved test that diverges: fork a crash into a booking, save the fork as a
+ * test and run it, then change the agent's code so its first model call sends
+ * another date, and run the test again. Mock only, since it changes the code.
+ */
+async function flowSavedTest(page: Page, shot: Shooter): Promise<void> {
+  const root = scope(page)
+  await openLanding(page)
+  await openFailureGroup(page, /SyntaxError/)
+  await editWithQuickFix(page, async () => undefined)
+  await root.locator('.rw-editor button', { hasText: /^Fork$/ }).click()
+  await idle(page)
+  await root.locator('.rw-path-line').waitFor({ timeout: RUN_WAIT_MS })
+  await root.locator('.rw-run-notes button', { hasText: 'Save as test' }).click()
+  await root.locator('.rw-test-head').waitFor({ timeout: 30_000 })
+  await root.locator('.rw-test button', { hasText: 'Run test' }).click()
+  await root.locator('.rw-test-head', { hasText: 'Passed' }).waitFor({ timeout: RUN_WAIT_MS })
+  await scrollToTop(page)
+  await shot('test-passes')
+  await configure({ code_change: 'weekday' })
+  await root.locator('.rw-test button', { hasText: 'Run again' }).click()
+  await root.locator('.rw-test-head', { hasText: 'Failed' }).waitFor({ timeout: RUN_WAIT_MS })
+  await page.mouse.move(0, 0)
+  await scrollToTop(page)
+  await shot('test-diverged')
+}
+
 /** C: the code changed; replay with it, check every run like this in two passes, open one that still fails. */
 async function flowC(page: Page, shot: Shooter): Promise<void> {
   const root = scope(page)
@@ -1021,6 +1048,7 @@ const FLOWS: Flow[] = [
   { id: 'a', core: true, walk: flowA },
   { id: 'b', core: true, walk: flowB },
   { id: 'c', core: false, walk: flowC },
+  { id: 'saved-test', core: false, walk: flowSavedTest },
   { id: 'd', core: true, walk: flowD },
   { id: 'd-unknown', core: true, walk: flowUnknownEffects, themes: ['dark'] },
   { id: 'd-motion', core: false, walk: flowDMotion, themes: ['dark'], video: true },

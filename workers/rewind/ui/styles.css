@@ -1819,6 +1819,57 @@
   font-size: 12px;
 }
 
+/* Where a failed test left its file: the call, what happened there, and each field the code sent differently. */
+[data-iii-ui="rewind"] .rw-test-diverged {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+[data-iii-ui="rewind"] .rw-test-why {
+  color: var(--color-ink-faint);
+}
+
+/* The rows are spans with display: contents, so each cell lands in the grid's columns. */
+[data-iii-ui="rewind"] .rw-test-fields {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px 16px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+[data-iii-ui="rewind"] .rw-test-row {
+  display: contents;
+}
+
+[data-iii-ui="rewind"] .rw-test-head-row > * {
+  font-size: 11px;
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-test-field,
+[data-iii-ui="rewind"] .rw-test-value {
+  display: block;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-iii-ui="rewind"] .rw-test-missing {
+  font-size: 12px;
+  color: var(--color-ink-ghost);
+}
+
+[data-iii-ui="rewind"] .rw-test-more {
+  margin-left: -8px;
+}
+
 /* ── one lost run ────────────────────────────────────────────────────── */
 
 [data-iii-ui="rewind"] .rw-recovery {

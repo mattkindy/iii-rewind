@@ -76,5 +76,5 @@ npm run saved-tests
 
 It replays every file in `tests/rewind` against the code on disk, one after another, and prints
 each result. A test that diverged shows the call it stopped at and each field of the input that
-changed. The command exits with 1 when any test fails. [Save as test](flows/save-as-test.md) says
+changed, and Run test on the page shows the same. The command exits with 1 when any test fails. [Save as test](flows/save-as-test.md) says
 what a test compares.
