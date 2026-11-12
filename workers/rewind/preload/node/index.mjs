@@ -8,8 +8,17 @@
  * file for Rewind to read. Rewind starts its copies with REWIND_CAPTURE=replay,
  * where each fetch gets its response from Rewind. REWIND_CAPTURE=off turns the
  * preload off, and then it loads none of its modules and changes nothing.
+ *
+ * In record mode, functions registered with `durable: true` keep a journal
+ * (durable.mjs), unless REWIND_DURABLE=off. A copy never keeps one.
  */
+import { register } from 'node:module'
+
 const MODE = process.env.REWIND_CAPTURE ?? 'record'
+
+if (MODE === 'record' && process.env.REWIND_DURABLE !== 'off') {
+  register('./sdkHooks.mjs', import.meta.url)
+}
 
 if (MODE !== 'off') {
   const [{ trackInvocations }, { installFetchHook }, { flushBeforeExit }, { installInbound }, { installSpans }] = await Promise.all([

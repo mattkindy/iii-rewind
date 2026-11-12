@@ -36,6 +36,8 @@ None of these need a running stack.
 ```bash
 cargo test --manifest-path workers/rewind/Cargo.toml                                  # Rewind's core
 node --test workers/rewind/preload/node/preload.test.mjs                              # Node preload
+node --test workers/rewind/preload/node/durable.test.mjs                              # durable runs in it
+(cd workers/journal && npm install && npm test)                                       # the journal
 workers/tools/.venv/bin/python -m unittest discover -s workers/rewind/preload/python  # Python preload
 (cd workers/rewind/ui && npm install && npm test)                                     # the page
 ```
