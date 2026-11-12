@@ -1,7 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" width="1200" height="760" role="img" aria-label="Each iii engine has a recorder that sends batches of calls to a Kafka log partitioned by run; store workers write the log to ClickHouse and object storage; replay pools on each engine read runs and save fork state in YugabyteDB through the store workers; the UI and query worker reads both stores and starts replays.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" width="1200" height="760" role="img" aria-label="Each iii engine has a recorder that sends batches of calls to a Kafka log partitioned by run; store workers write the log to ClickHouse and object storage; replay pools on each engine read runs and save fork state in YugabyteDB through the store workers; the app workers' preloads write each durable run's steps to the journal in YugabyteDB through the store workers; the UI and query worker reads both stores and starts replays.">
 <defs>
   <marker id="arrow-rec" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0f766e"/></marker>
   <marker id="arrow-rep" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6d28d9"/></marker>
+  <marker id="arrow-jrn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b45309"/></marker>
 </defs>
 <rect width="1200" height="760" fill="#ffffff"/>
 
@@ -54,7 +55,7 @@
 <rect x="968" y="260" width="208" height="104" rx="12" fill="#ffffff" stroke="#d8d5e6" stroke-width="1.5"/>
 <text x="984" y="290" fill="#1d1b29" font-size="16" font-weight="600">YugabyteDB</text>
 <text x="984" y="312" fill="#6a6780" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">forks, recoveries,</text>
-<text x="984" y="330" fill="#6a6780" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">send intents,</text>
+<text x="984" y="330" fill="#6a6780" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">the journal,</text>
 <text x="984" y="348" fill="#6a6780" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">leases</text>
 
 <rect x="968" y="464" width="208" height="104" rx="12" fill="#ffffff" stroke="#d8d5e6" stroke-width="1.5"/>
@@ -82,12 +83,16 @@
 <path d="M480,708 H38 V232 H74" fill="none" stroke="#6d28d9" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arrow-rep)"/>
 <path d="M730,682 H860 V360" fill="none" stroke="#6d28d9" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arrow-rep)"/>
 
+<path d="M80,100 H48 V12 H825 V264" fill="none" stroke="#b45309" stroke-width="2.5" stroke-dasharray="2 5" stroke-linecap="round" marker-end="url(#arrow-jrn)"/>
+
 <path d="M900,616 H940" fill="none" stroke="#0f766e" stroke-width="3.5"/>
 <text x="950" y="621" fill="#6a6780" font-size="13">record path</text>
 <path d="M900,644 H940" fill="none" stroke="#6d28d9" stroke-width="2.5" stroke-dasharray="7 5"/>
-<text x="950" y="649" fill="#6a6780" font-size="13">replay and resume path</text>
-<text x="900" y="680" fill="#6a6780" font-size="13">Every Rewind box is an iii worker.</text>
-<text x="900" y="698" fill="#6a6780" font-size="13">Calls between them go through</text>
-<text x="900" y="716" fill="#6a6780" font-size="13">an engine.</text>
+<text x="950" y="649" fill="#6a6780" font-size="13">replay and recovery path</text>
+<path d="M900,672 H940" fill="none" stroke="#b45309" stroke-width="2.5" stroke-dasharray="2 5" stroke-linecap="round"/>
+<text x="950" y="677" fill="#6a6780" font-size="13">journal of durable runs</text>
+<text x="900" y="708" fill="#6a6780" font-size="13">Every Rewind box is an iii worker.</text>
+<text x="900" y="726" fill="#6a6780" font-size="13">Calls between them go through</text>
+<text x="900" y="744" fill="#6a6780" font-size="13">an engine.</text>
 </g>
 </svg>
