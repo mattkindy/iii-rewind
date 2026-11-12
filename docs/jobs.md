@@ -51,7 +51,8 @@ The flow is done when the person has read the suspect answer and seen the failur
    is a form of it, with the JSON one tab away, and each field says what is wrong with it. A
    model's tool call shows its arguments as a form of the called tool's input, so a cut-off answer
    is fixed by filling in the fields the cut took, and a duration sent as a string shows as an
-   error on the duration field. Fork stays disabled until the answer fits the schema.
+   error on the duration field. While the answer breaks the schema, Fork reads **Fork anyway**,
+   because seeing how the code copes with such an answer is a reason to fork too.
 2. **Fork** runs the code with the edit, all the way to its end. A call the recording doesn't have
    runs live when its effects allow it. A call that can't run live, such as an irreversible send,
    gets the newest successful answer that function gave in another run, and nothing is sent.
