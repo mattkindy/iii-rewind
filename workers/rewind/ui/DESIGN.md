@@ -231,11 +231,11 @@ recovering does: "Replays calls that finished · runs read-only and external cal
 before the rest". Every Recover run button has the same line as its tooltip. Recover all has no tooltip,
 because the line is right above it.
 
-Recover all recovers the incident's open runs one after another, with progress such as "Recovering
+Recover all recovers the incident's open runs four at a time, with progress such as "Recovering
 2/5", and finishes the runs whose remaining calls are safe. A recovery runs live only calls whose
 effects are pure, read-only or external, and pauses at anything else: an irreversible call, a
-write, a function that declares no effects, and always the call the worker died while running,
-whatever its effects. The paused runs split into two groups by `need.reason`, and each group gets
+write, or a function that declares no effects. The call the worker died while running pauses too,
+unless it only reads. The paused runs split into two groups by `need.reason`, and each group gets
 one decision for all its runs:
 
 - Interrupted mid-send: the recovery paused at a call the worker died while running (`lost`), so the
@@ -250,7 +250,7 @@ one decision for all its runs:
 
 The line under a group's heading says which function it is, "email::send · the provider may have
 it". A function that declares no effects gets the "Effects unknown" badge, and its group starts
-with nothing picked. The page applies a decision with `rewind::answer`, one run after another,
+with nothing picked. The page applies a decision with `rewind::answer`, four runs at a time,
 with progress such as "Marking sent 2/3", and a run that fails doesn't stop the rest. The result
 counts how the runs ended, "3/3 marked sent · 3 booked", and lists any run that failed, with its
 error and a Retry. A run that pauses again at a later irreversible call joins the group it now
@@ -259,7 +259,7 @@ belongs to. Choose per run lists the group's runs, and each opens the decision f
 While Recover all or a group's decision runs, its progress takes the place of the open runs or of
 the group's choices. A bar with one segment per run fills as each run finishes, colored by how it
 ended, and a tally such as "2 booked" grows under it. Each run is listed as waiting, running or
-finished. The running one has a spinner, the seconds so far and what it is doing, from what the
+finished. Each running one has a spinner, the seconds so far and what it is doing, from what the
 page knew before it started: "Replaying 2 calls, then picking up at calendar::find-slot" for a
 recovery, and "Giving email::send its recorded result, then running the rest" for Mark all sent. A
 finished run says how it ended ("booked", "paused at email::send", or its error), lights up for a

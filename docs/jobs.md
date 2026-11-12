@@ -92,7 +92,7 @@ The flow is done when every run in the group comes back fixed and the test is sa
 1. The landing shows "5 runs · tools stopped 15:04" under Interrupted.
 2. Opening it lists the runs, with one line on what recovering does: it replays the calls that
    finished, runs read-only and external calls live, such as the model, and asks before the rest.
-   **Recover all** recovers every run, one after another.
+   **Recover all** recovers every run, four at a time.
 3. Runs whose remaining calls are safe to run finish on their own. The rest wait at an
    irreversible call, in two groups. A send interrupted mid-call may have reached the provider, and
    nobody can tell whether it did. A send the recovery reached afterwards never went out, and
@@ -102,7 +102,7 @@ The flow is done when every run in the group comes back fixed and the test is sa
    gives each run the result the same function returned in a recorded run. **Resend all** asks
    first and says how many could be duplicates. Sends that never went out start on **Send all**.
    Either group can be skipped, or answered one run at a time.
-5. The decision goes to one run after another, and the page says how they ended, such as "3/3
+5. The page sends the decision to four runs at a time and says how they ended, such as "3/3
    marked sent · 3 booked". A run that fails doesn't stop the others, and it's listed with a
    retry at the end.
 
