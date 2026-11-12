@@ -15,7 +15,7 @@ export type RunReport = {
   index: number
   workflow_id: string
   request: string
-  outcome: 'booked' | 'failed' | 'errors' | 'paused'
+  outcome: 'booked' | 'failed' | 'errors' | 'waiting'
   starts: number
   resumed: boolean
   elapsed_ms: number
@@ -34,7 +34,7 @@ export type JournalDetail = {
 export type Send = { to: string; subject: string; caller_invocation_id: string | null }
 export type Metric = { kind: 'step' | 'run'; journal_ms?: number; replayed?: boolean; again?: boolean; function_id?: string }
 
-const STOP_CODES = ['invocation_stopped', 'function_not_found', 'TIMEOUT', 'JOURNAL_UNAVAILABLE', 'FENCED', 'PAUSED', 'DIVERGED', 'UNKNOWN_WORKFLOW']
+const STOP_CODES = ['invocation_stopped', 'function_not_found', 'TIMEOUT', 'JOURNAL_UNAVAILABLE', 'FENCED', 'WAITING', 'DIVERGED', 'UNKNOWN_WORKFLOW']
 
 function stoppedBy(error: RunReport['error']): string | undefined {
   const text = `${error?.code ?? ''} ${error?.message ?? ''}`
@@ -57,7 +57,7 @@ function percentile(values: number[], p: number): number | null {
 }
 
 function finishedRun(report: RunReport): boolean {
-  if (report.outcome === 'paused') {
+  if (report.outcome === 'waiting') {
     return false
   }
 
@@ -100,7 +100,7 @@ export function countRun(report: RunReport, journal: JournalDetail, observed: Ob
     workflow_id: report.workflow_id,
     outcome: report.outcome,
     status: report.output?.status ?? null,
-    stopped_by: stop ?? (report.outcome === 'paused' ? 'PAUSED' : null),
+    stopped_by: stop ?? (report.outcome === 'waiting' ? 'WAITING' : null),
     finished: finishedRun(report),
     interrupted,
     starts: report.starts,
@@ -132,7 +132,7 @@ export function summarize(rows: RunRow[], metrics: Metric[], observed: Observed[
     runs: rows.length,
     finished: rows.filter((row) => row.finished).length,
     never_finished: rows.filter((row) => !row.finished).length,
-    paused: rows.filter((row) => row.stopped_by === 'PAUSED').length,
+    waiting: rows.filter((row) => row.stopped_by === 'WAITING').length,
     interrupted: interrupted.length,
     interrupted_finished: interrupted.filter((row) => row.finished).length,
     booked: booked.length,

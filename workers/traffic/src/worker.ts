@@ -36,9 +36,11 @@ const MAX_RETRY_DELAY_MS = 4_000
 const STOPS = new Set(['invocation_stopped', 'function_not_found', 'TIMEOUT'])
 
 type Start = 'call' | 'queue'
-type BurstInput = { count?: number; interval_ms?: number; start?: Start; retry?: boolean; detail?: boolean }
-type Outcome = 'booked' | 'failed' | 'errors' | 'paused'
+type BurstInput = { count?: number; interval_ms?: number; start?: Start; retry?: boolean; approval?: boolean; detail?: boolean }
+type Outcome = 'booked' | 'failed' | 'errors' | 'waiting'
 type RunOutput = { status: string; reply: string; turns: number }
+// What a durable run returns when it parks on a pending step instead of finishing.
+type Parked = { pending: true; workflow_id: string; waiting_for?: unknown }
 type RunReport = {
   index: number
   workflow_id: string
@@ -51,7 +53,7 @@ type RunReport = {
   error?: unknown
 }
 type BurstOutput = Record<Outcome, number> & { sent: number; resumed: number; runs?: RunReport[] }
-type Workflow = { status: 'running' | 'done' | 'failed' | 'paused'; output?: RunOutput; error?: unknown; pause?: unknown }
+type Workflow = { status: 'running' | 'done' | 'failed' | 'waiting'; output?: RunOutput; error?: unknown; pending?: unknown }
 
 const worker = registerWorker(ENGINE_URL, { workerName: 'traffic' })
 
@@ -76,8 +78,12 @@ function stopped(error: unknown): boolean {
 // The SDK takes the traceparent it sends from the active OpenTelemetry context.
 // Calling from the root context makes each run the root of a trace of its own,
 // the way a request from outside would arrive, instead of one trace per burst.
-function callRun(payload: Record<string, unknown>): Promise<RunOutput> {
-  return context.with(ROOT_CONTEXT, () => worker.call<typeof payload, RunOutput>({ function_id: 'agent::run', payload }))
+function callRun(payload: Record<string, unknown>): Promise<RunOutput | Parked> {
+  return context.with(ROOT_CONTEXT, () => worker.call<typeof payload, RunOutput | Parked>({ function_id: 'agent::run', payload }))
+}
+
+function isParked(output: RunOutput | Parked): output is Parked {
+  return (output as Parked).pending === true
 }
 
 function enqueueRun(payload: Record<string, unknown>): Promise<unknown> {
@@ -123,12 +129,12 @@ async function settled(workflowId: string, untilKnown: boolean): Promise<Workflo
 const OUTCOME_OF: Record<Workflow['status'], (workflow: Workflow) => Outcome> = {
   done: (workflow) => (workflow.output?.status === 'booked' ? 'booked' : 'failed'),
   failed: () => 'errors',
-  paused: () => 'paused',
+  waiting: () => 'waiting',
   running: () => 'errors',
 }
 
 function fromJournal(report: RunReport, workflow: Workflow): RunReport {
-  return { ...report, outcome: OUTCOME_OF[workflow.status](workflow), output: workflow.output, error: workflow.error ?? workflow.pause }
+  return { ...report, outcome: OUTCOME_OF[workflow.status](workflow), output: workflow.output, error: workflow.error ?? workflow.pending }
 }
 
 async function viaCall(report: RunReport, payload: Record<string, unknown>, retry: boolean, journal: boolean): Promise<RunReport> {
@@ -137,6 +143,10 @@ async function viaCall(report: RunReport, payload: Record<string, unknown>, retr
     report.starts += 1
     try {
       const output = await callRun(payload)
+      if (isParked(output)) {
+        return fromJournal(report, (await settled(report.workflow_id, false)) ?? { status: 'waiting', pending: output.waiting_for })
+      }
+
       return { ...report, outcome: output.status === 'booked' ? 'booked' : 'failed', output }
     } catch (error) {
       const found = journal && stopped(error) ? await settled(report.workflow_id, false) : null
@@ -167,7 +177,7 @@ async function viaQueue(report: RunReport, payload: Record<string, unknown>): Pr
 async function runOne(index: number, burstId: string, input: BurstInput, journal: boolean): Promise<RunReport> {
   const request = bookingRequest(index)
   const workflowId = `${burstId}-${index}`
-  const payload = { request, user: 'matt', _workflow_id: workflowId }
+  const payload = { request, user: 'matt', ...(input.approval ? { approval: true } : {}), _workflow_id: workflowId }
   const report: RunReport = { index, workflow_id: workflowId, request, outcome: 'errors', starts: 0, resumed: false, elapsed_ms: 0 }
   const began = Date.now()
   const done = input.start === 'queue' ? await viaQueue(report, payload) : await viaCall(report, payload, input.retry === true, journal)
@@ -195,7 +205,7 @@ async function burst(input: BurstInput): Promise<BurstOutput> {
   }
 
   const reports = await Promise.all(runs)
-  const tally: Record<Outcome, number> = { booked: 0, failed: 0, errors: 0, paused: 0 }
+  const tally: Record<Outcome, number> = { booked: 0, failed: 0, errors: 0, waiting: 0 }
   for (const report of reports) {
     tally[report.outcome] += 1
   }
@@ -226,6 +236,7 @@ worker.registerFunction('traffic::burst', burst, {
         description: `How each run starts: a call to agent::run, or a job on the ${RUN_QUEUE} queue, which delivers it again if the agent dies`,
       },
       retry: { type: 'boolean', default: false, description: 'Call a run again, with the same workflow id, when its call stops and the journal never saw it' },
+      approval: { type: 'boolean', default: false, description: 'Start each run with approval: true, so each invite waits for a person, and count those runs as waiting' },
       detail: { type: 'boolean', default: false, description: 'Also return each run with its workflow id and outcome' },
     },
   },
@@ -236,11 +247,11 @@ worker.registerFunction('traffic::burst', burst, {
       booked: runCount('Runs that replied with status booked'),
       failed: runCount('Runs that replied with status failed'),
       errors: runCount('Runs that threw, or stopped and never finished'),
-      paused: runCount('Durable runs waiting for a person, because a call that may have done its work was cut off'),
+      waiting: runCount('Durable runs waiting on a pending step: a wait for a value, a sleep, or a call a crash cut off that a person has to decide about'),
       resumed: runCount('Runs whose call stopped and that finished on a restarted agent'),
       runs: { type: 'array', description: 'Each run, when detail is true', items: { type: 'object' } },
     },
-    required: ['sent', 'booked', 'failed', 'errors', 'paused', 'resumed'],
+    required: ['sent', 'booked', 'failed', 'errors', 'waiting', 'resumed'],
   },
 })
 
