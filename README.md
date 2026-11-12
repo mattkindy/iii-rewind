@@ -142,3 +142,4 @@ and the page, and what each check covers, are in [docs/testing.md](docs/testing.
 | `docs/spike-0.26.md` | What iii 0.26.0's observers change for Rewind, measured |
 | `docs/multi-engine.md` | What still works when the tools run on a second engine |
 | `docs/durable-execution.md` | How an agent run survives the agent dying mid-run, measured with `npm run kill-agent`, and how a run pauses for an approval with no worker held |
+| `docs/durable-and-scale.md` | How Rewind and the journal would run across many engines, and how many calls a second one engine recorded on a laptop |
