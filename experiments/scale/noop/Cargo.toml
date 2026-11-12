@@ -1,0 +1,14 @@
+[package]
+name = "scale-noop"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Observer targets for measuring Rewind's recording ceiling: one that does nothing, one that batches into a store call, and the store that takes the batches"
+
+[dependencies]
+iii-sdk = "=0.25.0"
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "signal"] }
+
+[profile.release]
+debug = false

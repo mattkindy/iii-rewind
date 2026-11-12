@@ -1,0 +1,183 @@
+{
+  "recorder": "batch",
+  "at": "2026-11-12T04:08:31.362Z",
+  "engine": "/Users/mattkindy/.local/bin/iii",
+  "max_in_flight": "engine default",
+  "options": {
+    "recorder": "batch",
+    "label": "batch-rerun",
+    "lanes": 4,
+    "seconds": 10,
+    "fanout": 9,
+    "padBytes": 512,
+    "rates": [
+      6000,
+      8000,
+      12000,
+      16000,
+      24000
+    ]
+  },
+  "steps": [
+    {
+      "target_calls_per_s": 6000,
+      "made_calls_per_s": 5994,
+      "calls_made": 59960,
+      "delivered": 59960,
+      "stored": 59960,
+      "stored_ratio": 1,
+      "dropped": {},
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 3,
+      "run_ms_p99": 21,
+      "backlog_max": 345,
+      "backlog_at_end": 0,
+      "catch_up_ms": 1,
+      "cpu_percent": {
+        "engine": 159,
+        "recorder": 63,
+        "app": 132
+      },
+      "recorder_rss_mb": 46,
+      "load_average": 11.9,
+      "recorder_totals": {
+        "batches": 170,
+        "failed_batches": 0,
+        "flush_ms_mean": 7.04885294117647,
+        "flush_ms_max": 16.478
+      },
+      "saturated": []
+    },
+    {
+      "target_calls_per_s": 8000,
+      "made_calls_per_s": 7991,
+      "calls_made": 79960,
+      "delivered": 79960,
+      "stored": 79960,
+      "stored_ratio": 1,
+      "dropped": {},
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 4,
+      "run_ms_p99": 42,
+      "backlog_max": 508,
+      "backlog_at_end": 0,
+      "catch_up_ms": 1,
+      "cpu_percent": {
+        "engine": 197,
+        "recorder": 85,
+        "app": 135
+      },
+      "recorder_rss_mb": 53,
+      "load_average": 12.7,
+      "recorder_totals": {
+        "batches": 350,
+        "failed_batches": 0,
+        "flush_ms_mean": 8.872620000000001,
+        "flush_ms_max": 29.807
+      },
+      "saturated": []
+    },
+    {
+      "target_calls_per_s": 12000,
+      "made_calls_per_s": 11991,
+      "calls_made": 119950,
+      "delivered": 119950,
+      "stored": 119950,
+      "stored_ratio": 1,
+      "dropped": {},
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 4,
+      "run_ms_p99": 34,
+      "backlog_max": 655,
+      "backlog_at_end": 0,
+      "catch_up_ms": 0,
+      "cpu_percent": {
+        "engine": 272,
+        "recorder": 116,
+        "app": 173
+      },
+      "recorder_rss_mb": 74,
+      "load_average": 12.1,
+      "recorder_totals": {
+        "batches": 633,
+        "failed_batches": 0,
+        "flush_ms_mean": 9.458973143759874,
+        "flush_ms_max": 30.997
+      },
+      "saturated": []
+    },
+    {
+      "target_calls_per_s": 16000,
+      "made_calls_per_s": 15985,
+      "calls_made": 159930,
+      "delivered": 150847,
+      "stored": 150847,
+      "stored_ratio": 0.9432,
+      "dropped": {
+        "OVERFLOW": 9083
+      },
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 15,
+      "run_ms_p99": 139,
+      "backlog_max": 4631,
+      "backlog_at_end": 0,
+      "catch_up_ms": 0,
+      "cpu_percent": {
+        "engine": 300,
+        "recorder": 125,
+        "app": 193
+      },
+      "recorder_rss_mb": 141,
+      "load_average": 13.1,
+      "recorder_totals": {
+        "batches": 971,
+        "failed_batches": 0,
+        "flush_ms_mean": 13.406266735324408,
+        "flush_ms_max": 264.502
+      },
+      "saturated": [
+        "recorder stored under 99% of calls",
+        "engine dropped events"
+      ]
+    },
+    {
+      "target_calls_per_s": 24000,
+      "made_calls_per_s": 23982,
+      "calls_made": 239940,
+      "delivered": 147402,
+      "stored": 147402,
+      "stored_ratio": 0.6143,
+      "dropped": {
+        "OVERFLOW": 92538
+      },
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 72,
+      "run_ms_p99": 383,
+      "backlog_max": 5028,
+      "backlog_at_end": 0,
+      "catch_up_ms": 1,
+      "cpu_percent": {
+        "engine": 322,
+        "recorder": 117,
+        "app": 234
+      },
+      "recorder_rss_mb": 152,
+      "load_average": 14.7,
+      "recorder_totals": {
+        "batches": 1258,
+        "failed_batches": 0,
+        "flush_ms_mean": 16.962567567567568,
+        "flush_ms_max": 264.502
+      },
+      "saturated": [
+        "recorder stored under 99% of calls",
+        "engine dropped events"
+      ]
+    }
+  ]
+}

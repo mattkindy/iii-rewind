@@ -1,0 +1,148 @@
+{
+  "recorder": "noop",
+  "at": "2026-11-12T04:04:54.898Z",
+  "engine": "/Users/mattkindy/.local/bin/iii",
+  "max_in_flight": "engine default",
+  "options": {
+    "recorder": "noop",
+    "label": "noop-rerun",
+    "lanes": 4,
+    "seconds": 10,
+    "fanout": 9,
+    "padBytes": 512,
+    "rates": [
+      6000,
+      8000,
+      12000,
+      16000,
+      24000
+    ]
+  },
+  "steps": [
+    {
+      "target_calls_per_s": 6000,
+      "made_calls_per_s": 5992,
+      "calls_made": 59960,
+      "delivered": 59960,
+      "stored": 59960,
+      "stored_ratio": 1,
+      "dropped": {},
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 3,
+      "run_ms_p99": 16,
+      "backlog_max": 0,
+      "backlog_at_end": 0,
+      "catch_up_ms": 0,
+      "cpu_percent": {
+        "engine": 149,
+        "recorder": 49,
+        "app": 113
+      },
+      "recorder_rss_mb": 39,
+      "load_average": 16.9,
+      "saturated": []
+    },
+    {
+      "target_calls_per_s": 8000,
+      "made_calls_per_s": 7991,
+      "calls_made": 79940,
+      "delivered": 79940,
+      "stored": 79940,
+      "stored_ratio": 1,
+      "dropped": {},
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 3,
+      "run_ms_p99": 15,
+      "backlog_max": 0,
+      "backlog_at_end": 0,
+      "catch_up_ms": 0,
+      "cpu_percent": {
+        "engine": 191,
+        "recorder": 62,
+        "app": 111
+      },
+      "recorder_rss_mb": 40,
+      "load_average": 14.4,
+      "saturated": []
+    },
+    {
+      "target_calls_per_s": 12000,
+      "made_calls_per_s": 11989,
+      "calls_made": 119930,
+      "delivered": 119930,
+      "stored": 119930,
+      "stored_ratio": 1,
+      "dropped": {},
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 3,
+      "run_ms_p99": 22,
+      "backlog_max": 0,
+      "backlog_at_end": 0,
+      "catch_up_ms": 0,
+      "cpu_percent": {
+        "engine": 268,
+        "recorder": 89,
+        "app": 161
+      },
+      "recorder_rss_mb": 45,
+      "load_average": 13.9,
+      "saturated": []
+    },
+    {
+      "target_calls_per_s": 16000,
+      "made_calls_per_s": 15986,
+      "calls_made": 159940,
+      "delivered": 159940,
+      "stored": 159940,
+      "stored_ratio": 1,
+      "dropped": {},
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 5,
+      "run_ms_p99": 58,
+      "backlog_max": 12,
+      "backlog_at_end": 0,
+      "catch_up_ms": 0,
+      "cpu_percent": {
+        "engine": 320,
+        "recorder": 111,
+        "app": 219
+      },
+      "recorder_rss_mb": 78,
+      "load_average": 13.4,
+      "saturated": []
+    },
+    {
+      "target_calls_per_s": 24000,
+      "made_calls_per_s": 23984,
+      "calls_made": 239910,
+      "delivered": 193491,
+      "stored": 193491,
+      "stored_ratio": 0.8065,
+      "dropped": {
+        "OVERFLOW": 46419
+      },
+      "skipped_runs": 0,
+      "run_errors": 0,
+      "run_ms_p50": 12,
+      "run_ms_p99": 222,
+      "backlog_max": 4095,
+      "backlog_at_end": 3055,
+      "catch_up_ms": 116,
+      "cpu_percent": {
+        "engine": 380,
+        "recorder": 125,
+        "app": 288
+      },
+      "recorder_rss_mb": 138,
+      "load_average": 13.4,
+      "saturated": [
+        "recorder stored under 99% of calls",
+        "engine dropped events"
+      ]
+    }
+  ]
+}

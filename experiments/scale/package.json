@@ -1,0 +1,10 @@
+{
+  "name": "rewind-scale",
+  "private": true,
+  "type": "module",
+  "description": "Measures how many calls per second Rewind records on one engine, against an observer target that does nothing",
+  "dependencies": {
+    "iii-sdk": "0.25.0",
+    "tsx": "4.19.2"
+  }
+}
